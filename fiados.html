@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SmartPOS · VAO Sistemas · Fiados</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --oliva:       #1E88E5;
+    --oliva-dark:  #0D47A1;
+    --oliva-deep:  #0A2472;
+    --oliva-light: #E3F2FD;
+    --naranja:     #FF8C00;
+    --naranja-dark:#E65100;
+    --verde:       #2E7D32;
+    --verde-light: #E8F5E9;
+    --arena:       #F5F7FA;
+    --arena-dark:  #E8ECF0;
+    --blanco:      #FFFFFF;
+    --gris:        #607080;
+    --texto:       #111827;
+    --rojo:        #D32F2F;
+    --rojo-light:  #FFEBEE;
+}
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--texto); min-height:100dvh; }
+
+.header {
+    background:linear-gradient(135deg,var(--oliva-deep),var(--oliva-dark),var(--oliva));
+    padding:12px 16px; display:flex; align-items:center; gap:12px;
+    box-shadow:0 2px 12px rgba(13,71,161,0.35); position:sticky; top:0; z-index:100;
+}
+.header-titulo { font-family:'Playfair Display',serif; color:white; font-size:1rem; font-weight:900; line-height:1.1; }
+.header-sub { color:rgba(255,255,255,0.7); font-size:0.65rem; letter-spacing:2px; text-transform:uppercase; }
+.btn-volver { margin-left:auto; background:rgba(255,255,255,0.15); border:none; color:white; border-radius:20px; padding:6px 14px; font-size:0.78rem; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; display:inline-flex; align-items:center; }
+.btn-back-mini { background:rgba(255,255,255,0.15); border:none; color:white; border-radius:20px; padding:6px 14px; font-size:0.78rem; font-weight:700; cursor:pointer; font-family:inherit; }
+
+.loading { text-align:center; padding:60px 20px; color:var(--gris); }
+.spinner { width:36px; height:36px; border:3px solid var(--oliva-light); border-top-color:var(--oliva); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.empty { text-align:center; padding:40px 20px; color:#aaa; }
+
+.seccion { padding:14px 14px 90px; }
+
+.resumen-global { background:linear-gradient(135deg,var(--oliva-deep),var(--oliva)); border-radius:16px; padding:16px; margin-bottom:14px; color:white; }
+.res-label { font-size:0.72rem; opacity:0.75; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.res-total { font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; line-height:1; }
+.res-sub { font-size:0.8rem; opacity:0.85; margin-top:6px; }
+
+.cli-card {
+    background:white; border:1px solid var(--arena-dark); border-radius:14px;
+    padding:13px 15px; margin-bottom:9px; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    transition:border-color 0.15s;
+}
+.cli-card:active { border-color:var(--oliva); }
+.cli-card.vencido { border-left:4px solid var(--rojo); }
+.cli-nombre { font-weight:700; font-size:0.92rem; color:var(--texto); }
+.cli-meta { font-size:0.72rem; color:var(--gris); margin-top:2px; }
+.cli-monto { font-weight:900; font-size:1rem; color:var(--oliva-dark); text-align:right; white-space:nowrap; }
+.cli-badge { display:inline-block; font-size:0.65rem; font-weight:700; color:var(--rojo); background:var(--rojo-light); border-radius:8px; padding:1px 6px; margin-top:3px; }
+
+.fiado-card {
+    background:white; border:1px solid var(--arena-dark); border-radius:12px;
+    padding:12px 14px; margin-bottom:8px; cursor:pointer;
+}
+.fiado-card.vencido { border-left:4px solid var(--rojo); }
+.fiado-card.abonado { border-left:4px solid var(--naranja); }
+.fiado-top { display:flex; justify-content:space-between; align-items:baseline; }
+.fiado-desc { font-weight:700; font-size:0.85rem; color:var(--texto); }
+.fiado-saldo { font-weight:900; font-size:0.95rem; color:var(--oliva-dark); }
+.fiado-meta { font-size:0.72rem; color:var(--gris); margin-top:3px; }
+.fiado-estado { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+.fiado-estado.pendiente { color:var(--gris); }
+.fiado-estado.vencido { color:var(--rojo); }
+.fiado-estado.abonado { color:var(--naranja-dark); }
+
+.btn-primario {
+    width:100%; padding:13px; border:none; border-radius:12px;
+    background:var(--oliva-dark); color:white; font-weight:700; font-size:0.9rem;
+    cursor:pointer; font-family:inherit;
+}
+.btn-primario:disabled { opacity:0.6; }
+.btn-secundario {
+    width:100%; padding:11px; border:1px solid var(--arena-dark); border-radius:12px;
+    background:white; color:var(--gris); font-weight:700; font-size:0.85rem;
+    cursor:pointer; font-family:inherit; margin-top:8px;
+}
+
+.form-grupo { margin-bottom:14px; }
+.form-label { display:block; font-size:0.72rem; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.form-input {
+    width:100%; padding:11px 12px; border:1.5px solid var(--arena-dark); border-radius:10px;
+    font-size:0.95rem; font-family:inherit; color:var(--texto);
+}
+.form-input:focus { outline:none; border-color:var(--oliva); }
+
+.metodos-pago { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.btn-metodo {
+    flex:1; min-width:calc(50% - 4px); padding:10px 8px; border:2px solid var(--arena-dark);
+    border-radius:12px; background:white; font-size:0.8rem; font-weight:700; cursor:pointer;
+    font-family:inherit; color:var(--gris);
+}
+.btn-metodo.activo { border-color:var(--oliva); background:var(--oliva-light); color:var(--oliva-dark); }
+
+.modal-bg {
+    position:fixed; inset:0; background:rgba(10,36,114,0.55); z-index:1000;
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; pointer-events:none; transition:opacity 0.2s;
+}
+.modal-bg.open { opacity:1; pointer-events:auto; }
+.modal-sheet {
+    background:white; border-radius:20px 20px 0 0; width:100%; max-width:480px;
+    max-height:85vh; overflow-y:auto; padding:20px; transform:translateY(20px); transition:transform 0.2s;
+}
+.modal-bg.open .modal-sheet { transform:translateY(0); }
+.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.modal-titulo { font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700; color:var(--texto); }
+.modal-cerrar { background:var(--arena); border:none; width:30px; height:30px; border-radius:50%; font-size:1rem; cursor:pointer; color:var(--gris); }
+
+.comprobante-texto {
+    background:var(--arena); border-radius:10px; padding:12px; font-size:0.82rem;
+    white-space:pre-wrap; color:var(--texto); margin-bottom:14px; line-height:1.5;
+}
+.error-msg { color:var(--rojo); font-size:0.85rem; margin-bottom:10px; display:none; }
+.toast {
+    position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#333; color:white;
+    padding:8px 20px; border-radius:20px; font-size:0.85rem; font-weight:600; z-index:2000;
+    opacity:0; transition:opacity 0.3s; pointer-events:none; white-space:nowrap;
+}
+.toast.visible { opacity:1; }
+.toast.verde { background:var(--verde); }
+.toast.rojo { background:var(--rojo); }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" height="38" style="flex-shrink:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));" role="img" aria-label="VAO Sistemas">
+  <defs>
+    <linearGradient id="fbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#21A8F6"/><stop offset="100%" stop-color="#0B49E8"/></linearGradient>
+    <linearGradient id="fgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6BCB17"/><stop offset="100%" stop-color="#24A72E"/></linearGradient>
+    <linearGradient id="fsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFC21A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+    <linearGradient id="fhg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0B49E8"/><stop offset="28%" stop-color="#16A6EF"/><stop offset="50%" stop-color="#43B02A"/><stop offset="70%" stop-color="#D6CF00"/><stop offset="86%" stop-color="#FFB000"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+  </defs>
+  <path d="M105 65 L305 65 L515 305 L710 65 L900 65 L525 430 L470 430 Z" fill="url(#fbg)"/>
+  <path d="M565 405 L900 90 L1165 385 L1015 385 L900 240 L800 350 L1005 350 L1065 420 L700 420 Z" fill="url(#fgg)"/>
+  <path d="M1228 351 A115 115 0 0 1 1458 351 Z" fill="url(#fsg)"/>
+  <g stroke="#FFB000" stroke-width="15" stroke-linecap="round"><line x1="1343" y1="165" x2="1343" y2="112"/><line x1="1230" y1="214" x2="1190" y2="174"/><line x1="1456" y1="214" x2="1496" y2="174"/></g>
+  <path d="M70 490 C 355 395, 650 355, 980 352 C 1210 350, 1410 370, 1560 410" fill="none" stroke="url(#fhg)" stroke-width="15" stroke-linecap="round"/>
+</svg>
+    <div>
+        <div class="header-titulo">VAO Sistemas</div>
+        <div class="header-sub" id="headerSub">Fiados</div>
+    </div>
+    <button class="btn-back-mini" id="btnVolverDetalle" style="display:none;" onclick="volverALista()">← Clientes</button>
+    <a href="pos.html?p=" class="btn-volver" id="btnVolverPos">Salir →</a>
+</div>
+
+<div id="appContent">
+    <div class="loading"><div class="spinner"></div><div>Cargando fiados...</div></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL COBRO/ABONO -->
+<div class="modal-bg" id="modalPago" onclick="if(event.target===this)cerrarModalPago()">
+    <div class="modal-sheet">
+        <div class="modal-header">
+            <span class="modal-titulo">💰 Registrar pago</span>
+            <button class="modal-cerrar" onclick="cerrarModalPago()">✕</button>
+        </div>
+        <div id="pagoInfo" style="font-size:0.85rem;color:var(--gris);margin-bottom:14px;"></div>
+        <div class="form-grupo">
+            <label class="form-label">Monto a pagar</label>
+            <input type="number" class="form-input" id="pagoMonto" min="0">
+        </div>
+        <div class="form-grupo">
+            <label class="form-label">Método de pago</label>
+            <div class="metodos-pago">
+                <button class="btn-metodo activo" id="metodoPago-efectivo" onclick="seleccionarMetodoPago('efectivo')">💵 Efectivo</button>
+                <button class="btn-metodo" id="metodoPago-transferencia" onclick="seleccionarMetodoPago('transferencia')">🏦 Transferencia</button>
+                <button class="btn-metodo" id="metodoPago-debito" onclick="seleccionarMetodoPago('debito')">💳 Débito</button>
+                <button class="btn-metodo" id="metodoPago-qr_posnet" onclick="seleccionarMetodoPago('qr_posnet')">💳 QR / Posnet</button>
+            </div>
+        </div>
+        <div class="error-msg" id="pagoError"></div>
+        <button class="btn-primario" id="btnConfirmarPago" onclick="confirmarPago()">✅ Confirmar pago</button>
+    </div>
+</div>
+
+<!-- MODAL COMPROBANTE -->
+<div class="modal-bg" id="modalComprobante" onclick="if(event.target===this)cerrarComprobante()">
+    <div class="modal-sheet">
+        <div class="modal-header">
+            <span class="modal-titulo">✅ Pago registrado</span>
+            <button class="modal-cerrar" onclick="cerrarComprobante()">✕</button>
+        </div>
+        <div class="comprobante-texto" id="comprobanteTexto"></div>
+        <button class="btn-primario" onclick="compartirComprobante()">📲 Compartir por WhatsApp</button>
+        <button class="btn-secundario" onclick="copiarComprobante()">📋 Copiar texto</button>
+        <div id="copiadoMsg" style="display:none;text-align:center;font-size:0.78rem;color:var(--verde);margin-top:8px;">Copiado ✅</div>
+    </div>
+</div>
+
+<script>
+const APP_VERSION = 1;
+const API_URL = 'https://script.google.com/macros/s/AKfycbwwy4ZAd7OARxFE79JRm0tYnctVEyNhiCQjxr-Gc73GrEGaEytsldJw4gnu_vSndgSe1g/exec';
+
+// Mismo esquema seguro que ya usan pos.html y reportes.html — sin sesión
+// propia: PREFIJO por querystring + token que pos.html ya guardó en
+// localStorage al loguearse (vao_token_<PREFIJO>).
+const PREFIJO = (new URLSearchParams(window.location.search).get('p') || '').toUpperCase();
+const TOKEN_KEY = 'vao_token_' + PREFIJO;
+function _tokenActual() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('headerSub').textContent = 'Fiados v' + APP_VERSION;
+    var btnVolver = document.getElementById('btnVolverPos');
+    if (btnVolver) btnVolver.href = 'pos.html?p=' + PREFIJO;
+});
+
+async function _api(action, data) {
+    const url = API_URL + '?action=' + action + '&prefijo=' + PREFIJO +
+        '&data=' + encodeURIComponent(JSON.stringify(Object.assign({ token: _tokenActual() }, data || {})));
+    const r = await fetch(url, { redirect: 'follow' });
+    return r.json();
+}
+
+function toast(msg, tipo) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast visible' + (tipo ? ' ' + tipo : '');
+    setTimeout(() => { t.className = 'toast'; }, 2600);
+}
+
+function fmt(n) { return '$' + Math.round(n || 0).toLocaleString('es-AR'); }
+
+let todosFiados = [];      // último resultado de getFiados, sin filtrar
+let clienteActual = null;  // { cliente, telefono }
+let fiadosCliente = [];    // último resultado de getFiadosCliente para el cliente abierto
+let fiadoSeleccionado = null;
+let metodoPagoActual = 'efectivo';
+let ultimoComprobante = '';
+
+// ========== ARRANQUE ==========
+async function init() {
+    if (!PREFIJO || !_tokenActual()) {
+        document.getElementById('appContent').innerHTML =
+            '<div class="loading" style="color:var(--rojo);">❌ Sesión no encontrada. Volvé a entrar desde el POS.</div>';
+        return;
+    }
+    await cargarListaClientes();
+}
+
+async function cargarListaClientes() {
+    document.getElementById('btnVolverDetalle').style.display = 'none';
+    document.getElementById('appContent').innerHTML =
+        '<div class="loading"><div class="spinner"></div><div>Cargando fiados...</div></div>';
+    try {
+        const data = await _api('getFiados');
+        if (data.error) {
+            document.getElementById('appContent').innerHTML =
+                '<div class="loading" style="color:var(--rojo);">❌ ' + data.error + '</div>';
+            return;
+        }
+        todosFiados = data.fiados || [];
+        renderListaClientes();
+    } catch (e) {
+        document.getElementById('appContent').innerHTML =
+            '<div class="loading" style="color:var(--rojo);">❌ Error al cargar. Verificá la conexión.</div>';
+    }
+}
+
+// Agrupa los fiados pendientes/vencidos por cliente — mismo criterio simple
+// que ya se usa en el resto del ecosistema (agrupar en el frontend a partir
+// de un único listado), sin pedirle al backend nada que hoy no tenga.
+function agruparPorCliente(fiados) {
+    const map = {};
+    fiados.forEach(f => {
+        if (f.estado === 'PAGADO') return;
+        const key = (f.cliente || '').trim().toUpperCase();
+        if (!key) return;
+        if (!map[key]) map[key] = { cliente: f.cliente, telefono: f.telefono, total: 0, cant: 0, vencidos: 0 };
+        map[key].total += f.total;
+        map[key].cant++;
+        if (f.estado === 'VENCIDO') map[key].vencidos++;
+        if (!map[key].telefono && f.telefono) map[key].telefono = f.telefono;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
+function renderListaClientes() {
+    const clientes = agruparPorCliente(todosFiados);
+    const totalGeneral = clientes.reduce((s, c) => s + c.total, 0);
+    const cont = document.getElementById('appContent');
+
+    if (!clientes.length) {
+        cont.innerHTML = '<div class="seccion"><div class="empty">🎉 No hay deuda pendiente registrada</div></div>';
+        return;
+    }
+
+    let html = '<div class="seccion">';
+    html += '<div class="resumen-global">' +
+        '<div class="res-label">Deuda total pendiente</div>' +
+        '<div class="res-total">' + fmt(totalGeneral) + '</div>' +
+        '<div class="res-sub">' + clientes.length + ' cliente' + (clientes.length !== 1 ? 's' : '') + ' con deuda</div>' +
+        '</div>';
+
+    clientes.forEach(c => {
+        const nombreEsc = encodeURIComponent(c.cliente);
+        html += '<div class="cli-card' + (c.vencidos > 0 ? ' vencido' : '') + '" onclick="abrirCliente(\'' + nombreEsc + '\')">' +
+            '<div>' +
+                '<div class="cli-nombre">' + c.cliente + '</div>' +
+                '<div class="cli-meta">' + c.cant + ' fiado' + (c.cant !== 1 ? 's' : '') + (c.telefono ? ' · ' + c.telefono : '') + '</div>' +
+                (c.vencidos > 0 ? '<div class="cli-badge">' + c.vencidos + ' vencido' + (c.vencidos !== 1 ? 's' : '') + '</div>' : '') +
+            '</div>' +
+            '<div class="cli-monto">' + fmt(c.total) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    cont.innerHTML = html;
+}
+
+function volverALista() {
+    clienteActual = null;
+    cargarListaClientes();
+}
+
+// ========== DETALLE DE CLIENTE ==========
+async function abrirCliente(nombreEsc) {
+    const nombre = decodeURIComponent(nombreEsc);
+    document.getElementById('btnVolverDetalle').style.display = '';
+    document.getElementById('appContent').innerHTML =
+        '<div class="loading"><div class="spinner"></div><div>Cargando cliente...</div></div>';
+    try {
+        const data = await _api('getFiadosCliente', { cliente: nombre });
+        if (data.error) {
+            document.getElementById('appContent').innerHTML =
+                '<div class="loading" style="color:var(--rojo);">❌ ' + data.error + '</div>';
+            return;
+        }
+        clienteActual = { cliente: data.cliente || nombre, telefono: data.telefono || '' };
+        fiadosCliente = data.fiados || [];
+        renderDetalleCliente(data);
+    } catch (e) {
+        document.getElementById('appContent').innerHTML =
+            '<div class="loading" style="color:var(--rojo);">❌ Error al cargar. Verificá la conexión.</div>';
+    }
+}
+
+function renderDetalleCliente(data) {
+    const cont = document.getElementById('appContent');
+    let html = '<div class="seccion">';
+    html += '<div class="resumen-global">' +
+        '<div class="res-label">' + clienteActual.cliente + '</div>' +
+        '<div class="res-total">' + fmt(data.totalDeuda) + '</div>' +
+        '<div class="res-sub">' + (data.cantFiados || 0) + ' fiado' + (data.cantFiados !== 1 ? 's' : '') +
+            (data.hayVencidos ? ' · tiene vencidos' : '') +
+            (clienteActual.telefono ? ' · ' + clienteActual.telefono : '') + '</div>' +
+        '</div>';
+
+    if (!fiadosCliente.length) {
+        html += '<div class="empty">Sin fiados pendientes para este cliente</div>';
+    } else {
+        fiadosCliente.forEach(f => {
+            const cls = f.estado === 'VENCIDO' ? 'vencido' : (f.abonadoParcial ? 'abonado' : '');
+            const estadoTxt = f.estado === 'VENCIDO' ? 'Vencido' : (f.abonadoParcial ? 'Abonado parcial' : 'Pendiente');
+            const estadoCls = f.estado === 'VENCIDO' ? 'vencido' : (f.abonadoParcial ? 'abonado' : 'pendiente');
+            const ref = f.ticket ? ('Ticket #' + f.ticket) : f.idFiado;
+            html += '<div class="fiado-card ' + cls + '" onclick="abrirModalPago(\'' + f.idFiado + '\')">' +
+                '<div class="fiado-top"><span class="fiado-desc">' + (f.descripcion || ref) + '</span>' +
+                '<span class="fiado-saldo">' + fmt(f.totalPendiente) + '</span></div>' +
+                '<div class="fiado-meta">' + ref + ' · ' + (f.fecha || '').split(' ')[0] +
+                    (f.fechaVencimiento ? ' · vence ' + f.fechaVencimiento : '') +
+                    (f.abonadoParcial ? ' · abonado ' + fmt(f.montoAbonado) : '') + '</div>' +
+                '<div class="fiado-estado ' + estadoCls + '">' + estadoTxt + '</div>' +
+            '</div>';
+        });
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+}
+
+// ========== MODAL DE PAGO (abono o cobro total de UN fiado) ==========
+function abrirModalPago(idFiado) {
+    fiadoSeleccionado = fiadosCliente.find(f => f.idFiado === idFiado);
+    if (!fiadoSeleccionado) return;
+    document.getElementById('pagoInfo').textContent =
+        (fiadoSeleccionado.descripcion || fiadoSeleccionado.idFiado) + ' — saldo ' + fmt(fiadoSeleccionado.totalPendiente);
+    document.getElementById('pagoMonto').value = fiadoSeleccionado.totalPendiente;
+    document.getElementById('pagoError').style.display = 'none';
+    seleccionarMetodoPago('efectivo');
+    document.getElementById('btnConfirmarPago').disabled = false;
+    document.getElementById('btnConfirmarPago').textContent = '✅ Confirmar pago';
+    document.getElementById('modalPago').classList.add('open');
+}
+function cerrarModalPago() { document.getElementById('modalPago').classList.remove('open'); }
+
+function seleccionarMetodoPago(m) {
+    metodoPagoActual = m;
+    ['efectivo', 'transferencia', 'debito', 'qr_posnet'].forEach(k => {
+        const btn = document.getElementById('metodoPago-' + k);
+        if (btn) btn.className = 'btn-metodo' + (k === m ? ' activo' : '');
+    });
+}
+
+async function confirmarPago() {
+    if (!fiadoSeleccionado) return;
+    const monto = parseFloat(document.getElementById('pagoMonto').value) || 0;
+    const errDiv = document.getElementById('pagoError');
+    errDiv.style.display = 'none';
+    if (monto <= 0) { errDiv.textContent = '❌ Ingresá un monto válido'; errDiv.style.display = 'block'; return; }
+
+    const esAbono = monto < fiadoSeleccionado.totalPendiente - 0.5;
+    const idOperacion = 'FVAO-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const btn = document.getElementById('btnConfirmarPago');
+    btn.disabled = true; btn.textContent = '⏳ Procesando...';
+
+    try {
+        let resp;
+        if (esAbono) {
+            resp = await _api('abonarFiado', { idFiado: fiadoSeleccionado.idFiado, abono: monto, metodoPago: metodoPagoActual, idOperacion });
+        } else {
+            resp = await _api('cobrarFiado', { idFiado: fiadoSeleccionado.idFiado, metodoPago: metodoPagoActual, idOperacion });
+        }
+        if (resp.success) {
+            armarComprobante(monto, esAbono);
+            cerrarModalPago();
+            toast('✅ Pago registrado', 'verde');
+            await abrirClienteRefresh();
+            abrirComprobante();
+        } else {
+            errDiv.textContent = '❌ ' + (resp.error || resp.mensaje || 'Error al registrar el pago');
+            errDiv.style.display = 'block';
+        }
+    } catch (e) {
+        errDiv.textContent = '❌ Sin conexión';
+        errDiv.style.display = 'block';
+    }
+    btn.disabled = false; btn.textContent = '✅ Confirmar pago';
+}
+
+async function abrirClienteRefresh() {
+    if (!clienteActual) return;
+    try {
+        const data = await _api('getFiadosCliente', { cliente: clienteActual.cliente, telefono: clienteActual.telefono });
+        if (!data.error) {
+            fiadosCliente = data.fiados || [];
+            renderDetalleCliente(data);
+        }
+    } catch (e) { /* si falla el refresco, el próximo "Volver" igual trae todo actualizado */ }
+}
+
+// ========== COMPROBANTE ==========
+function armarComprobante(monto, esAbono) {
+    const ref = fiadoSeleccionado.ticket ? ('Ticket #' + fiadoSeleccionado.ticket) : fiadoSeleccionado.idFiado;
+    const metodoLabel = { efectivo: 'Efectivo', transferencia: 'Transferencia', debito: 'Débito', qr_posnet: 'QR / Posnet' }[metodoPagoActual] || metodoPagoActual;
+    const restante = Math.max(0, fiadoSeleccionado.totalPendiente - monto);
+    const lineas = [
+        (esAbono ? '📋 *ABONO REGISTRADO*' : '✅ *PAGO REGISTRADO*'),
+        '',
+        '👤 Cliente: ' + clienteActual.cliente,
+        '🧾 ' + ref,
+        '💰 Monto: ' + fmt(monto),
+        (esAbono ? '📋 Saldo restante: ' + fmt(restante) : '✅ Deuda saldada'),
+        '💳 Método: ' + metodoLabel
+    ];
+    ultimoComprobante = lineas.join('\n');
+}
+
+function abrirComprobante() {
+    document.getElementById('comprobanteTexto').textContent = ultimoComprobante;
+    document.getElementById('copiadoMsg').style.display = 'none';
+    document.getElementById('modalComprobante').classList.add('open');
+}
+function cerrarComprobante() { document.getElementById('modalComprobante').classList.remove('open'); }
+
+function compartirComprobante() {
+    if (!ultimoComprobante) return;
+    if (navigator.share) { navigator.share({ text: ultimoComprobante }).catch(() => {}); }
+    else { window.open('https://wa.me/?text=' + encodeURIComponent(ultimoComprobante), '_blank'); }
+}
+function copiarComprobante() {
+    if (!ultimoComprobante) return;
+    const msg = document.getElementById('copiadoMsg');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ultimoComprobante).then(() => { msg.style.display = 'block'; });
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = ultimoComprobante; ta.style.cssText = 'position:fixed;top:-9999px';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try { document.execCommand('copy'); msg.style.display = 'block'; } catch (e) {}
+        document.body.removeChild(ta);
+    }
+}
+
+init();
+</script>
+
+</body>
+</html>

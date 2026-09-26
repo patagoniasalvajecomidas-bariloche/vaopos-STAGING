@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>VAO Sistemas · SmartPOS</title>
+<link rel="icon" type="image/svg+xml" href="VA_logo_vector_master.svg">
+<style>
+  :root{
+    --bg: #141A22;
+    --panel: #1B2431;
+    --panel-border: #2A3542;
+    --text: #eef2f0;
+    --muted: #90A0AF;
+    --accent: #FF9800;
+    --green: #2CCB6F;
+    --green-hover: #34e07d;
+    --green-active: #23b25e;
+    --blue: #0078FF;
+    --error: #e2665a;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    height:100%;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body{
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 50% -10%, rgba(0,120,255,0.10), transparent 55%),
+      linear-gradient(180deg, #141A22 0%, #10151b 100%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding: 24px;
+  }
+
+  .stage{
+    width:100%;
+    max-width: 360px;
+  }
+
+  .mark{
+    display:flex;
+    justify-content:center;
+    margin-bottom: 20px;
+  }
+
+  .mark svg{
+    height: 64px;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .brand{
+    text-align:center;
+    margin-bottom: 32px;
+  }
+
+  .brand .company{
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+  }
+
+  .brand .tagline{
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 10px 0;
+    line-height: 1.4;
+  }
+
+  .brand .product{
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+    opacity: 0.8;
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-top: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 28px 22px 24px 22px;
+  }
+
+  label{
+    display:block;
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  input#codigo{
+    width:100%;
+    font-size: 22px;
+    letter-spacing: 0.12em;
+    text-align:center;
+    text-transform: uppercase;
+    background: #10151b;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 16px 12px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  input#codigo::placeholder{
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 15px;
+    color: #5c6b78;
+  }
+
+  input#codigo:focus{
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(0,120,255,0.20);
+  }
+
+  input#codigo.invalid{
+    border-color: var(--error);
+  }
+
+  .error-slot{
+    min-height: 20px;
+    margin-top: 10px;
+  }
+
+  .error-slot p{
+    margin:0;
+    font-size: 13px;
+    color: var(--error);
+  }
+
+  button#entrar{
+    width:100%;
+    margin-top: 18px;
+    padding: 15px 12px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #0c1a12;
+    background: var(--green);
+    border: none;
+    border-radius: 8px;
+    cursor:pointer;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+  }
+
+  button#entrar:hover{ background: var(--green-hover); }
+  button#entrar:active{ background: var(--green-active); transform: translateY(1px); }
+
+  button#entrar:focus-visible,
+  a.admin-link:focus-visible{
+    outline: 2px solid var(--blue);
+    outline-offset: 3px;
+  }
+
+  .admin-row{
+    text-align:center;
+    margin-top: 26px;
+  }
+
+  .admin-row span{
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  a.admin-link{
+    color: var(--muted);
+    font-size: 13px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  a.admin-link:hover{ color: var(--text); }
+
+  .version-tag{
+    position: fixed;
+    right: 10px;
+    bottom: 8px;
+    font-size: 11px;
+    color: #3a4652;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <div class="mark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" height="64"
+      style="flex-shrink:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));"
+      role="img" aria-label="VAO Sistemas">
+        <defs>
+          <linearGradient id="hbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%"
+      stop-color="#21A8F6"/><stop offset="100%" stop-color="#0B49E8"/></linearGradient>
+          <linearGradient id="hgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%"
+      stop-color="#6BCB17"/><stop offset="100%" stop-color="#24A72E"/></linearGradient>
+          <linearGradient id="hsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%"
+      stop-color="#FFC21A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+          <linearGradient id="hhg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%"
+      stop-color="#0B49E8"/><stop offset="28%" stop-color="#16A6EF"/><stop offset="50%"
+      stop-color="#43B02A"/><stop offset="70%" stop-color="#D6CF00"/><stop offset="86%"
+      stop-color="#FFB000"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+        </defs>
+        <path d="M105 65 L305 65 L515 305 L710 65 L900 65 L525 430 L470 430 Z"
+      fill="url(#hbg)"/>
+        <path d="M565 405 L900 90 L1165 385 L1015 385 L900 240 L800 350 L1005 350
+      L1065 420 L700 420 Z" fill="url(#hgg)"/>
+        <path d="M1228 351 A115 115 0 0 1 1458 351 Z" fill="url(#hsg)"/>
+        <g stroke="#FFB000" stroke-width="15" stroke-linecap="round"><line x1="1343"
+      y1="165" x2="1343" y2="112"/><line x1="1230" y1="214" x2="1190" y2="174"/>
+      <line x1="1456" y1="214" x2="1496" y2="174"/></g>
+        <path d="M70 490 C 355 395, 650 355, 980 352 C 1210 350, 1410 370, 1560 410"
+      fill="none" stroke="url(#hhg)" stroke-width="15" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="brand">
+      <p class="company">VAO Sistemas</p>
+      <p class="tagline">Ver más lejos. Avanzar mejor. Crear el futuro.</p>
+      <p class="product">SmartPOS</p>
+    </div>
+
+    <div class="panel">
+      <form id="form-entrada" novalidate>
+        <label for="codigo">Ingresá tu código de cliente (ej: XX)</label>
+        <input
+          type="text"
+          id="codigo"
+          name="codigo"
+          maxlength="3"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          inputmode="text"
+          placeholder="XX"
+        >
+        <div class="error-slot" aria-live="polite">
+          <p id="error-msg" hidden>Código inválido</p>
+        </div>
+
+        <button type="submit" id="entrar">Entrar</button>
+      </form>
+    </div>
+
+    <div class="admin-row">
+      <span>¿Sos administrador?</span>
+      <a class="admin-link" href="admin.html">Acceso aquí</a>
+    </div>
+  </div>
+
+  <span class="version-tag" id="version-tag"></span>
+
+<script>
+  const APP_VERSION = 8;
+
+  document.getElementById('version-tag').textContent = 'v' + APP_VERSION;
+
+  const form = document.getElementById('form-entrada');
+  const input = document.getElementById('codigo');
+  const errorMsg = document.getElementById('error-msg');
+  const CODIGO_REGEX = /^[A-Za-z]{2,3}$/;
+
+  function mostrarError(mostrar){
+    errorMsg.hidden = !mostrar;
+    input.classList.toggle('invalid', mostrar);
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    const valor = input.value.trim();
+
+    if(!CODIGO_REGEX.test(valor)){
+      mostrarError(true);
+      input.focus();
+      return;
+    }
+
+    mostrarError(false);
+    window.location.href = 'pos.html?p=' + valor.toUpperCase();
+  });
+
+  input.addEventListener('input', function(){
+    if(!errorMsg.hidden){
+      mostrarError(false);
+    }
+  });
+</script>
+
+</body>
+</html>

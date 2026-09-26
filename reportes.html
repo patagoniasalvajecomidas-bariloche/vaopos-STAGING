@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SmartPOS · VAO Sistemas · Reportes</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --oliva:       #1E88E5;
+    --oliva-dark:  #0D47A1;
+    --oliva-deep:  #0A2472;
+    --oliva-light: #E3F2FD;
+    --naranja:     #FF8C00;
+    --naranja-dark:#E65100;
+    --arena:       #F5F7FA;
+    --arena-dark:  #E8ECF0;
+    --blanco:      #FFFFFF;
+    --gris:        #607080;
+    --texto:       #111827;
+    --rojo:        #D32F2F;
+}
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--texto); min-height:100dvh; }
+
+.header {
+    background:linear-gradient(135deg,var(--oliva-deep),var(--oliva-dark),var(--oliva));
+    padding:12px 16px; display:flex; align-items:center; gap:12px;
+    box-shadow:0 2px 12px rgba(13,71,161,0.35); position:sticky; top:0; z-index:100;
+}
+.header-logo { width:38px; height:38px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.3); background:var(--arena); }
+.header-titulo { font-family:'Playfair Display',serif; color:white; font-size:1rem; font-weight:900; line-height:1.1; }
+.header-sub { color:rgba(255,255,255,0.7); font-size:0.65rem; letter-spacing:2px; text-transform:uppercase; }
+.btn-volver { margin-left:auto; background:rgba(255,255,255,0.15); border:none; color:white; border-radius:20px; padding:6px 14px; font-size:0.78rem; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:none; display:inline-flex; align-items:center; }
+
+.loading { text-align:center; padding:60px 20px; color:var(--gris); }
+.spinner { width:36px; height:36px; border:3px solid var(--oliva-light); border-top-color:var(--oliva); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.seccion { padding:14px 14px 0; }
+.seccion-titulo { font-size:0.72rem; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; }
+
+.mes-nav { display:flex; align-items:center; justify-content:space-between; background:white; border-radius:14px; padding:10px 14px; border:1px solid var(--arena-dark); margin-bottom:14px; }
+.mes-nombre { font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700; color:var(--oliva-dark); }
+.btn-mes { width:32px; height:32px; border:none; border-radius:50%; background:var(--oliva-light); color:var(--oliva-dark); font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:900; }
+
+.filtros-metodo { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.chip-metodo { padding:5px 12px; border:2px solid var(--arena-dark); border-radius:20px; background:white; font-size:0.75rem; font-weight:700; cursor:pointer; color:var(--gris); font-family:inherit; transition:all 0.15s; white-space:nowrap; }
+.chip-metodo.activo { background:var(--oliva-dark); border-color:var(--oliva-dark); color:white; }
+
+.calendario { background:white; border-radius:16px; border:1px solid var(--arena-dark); overflow:hidden; margin-bottom:14px; }
+.cal-semanas { display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid var(--arena-dark); }
+.cal-dia-nombre { text-align:center; padding:6px 2px; font-size:0.65rem; font-weight:700; color:var(--gris); text-transform:uppercase; }
+.cal-dias { display:grid; grid-template-columns:repeat(7,1fr); }
+.cal-dia { border:1px solid transparent; border-radius:10px; margin:3px; padding:5px 2px; text-align:center; cursor:pointer; transition:all 0.15s; min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:1px; }
+.cal-dia.vacio { cursor:default; }
+.cal-dia.seleccionado { background:var(--oliva-dark) !important; border-color:var(--oliva-deep) !important; }
+.cal-dia.seleccionado .dia-num { color:white !important; background:transparent !important; }
+.cal-dia.seleccionado .dia-monto { color:rgba(255,255,255,0.85) !important; }
+.cal-dia.tiene-ventas { background:var(--oliva-light); border-color:var(--arena-dark); }
+.cal-dia.hoy .dia-num { background:var(--naranja); color:white; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; }
+.cal-dia:not(.vacio):not(.seleccionado):active { transform:scale(0.93); }
+.dia-num { font-size:0.82rem; font-weight:700; color:var(--texto); line-height:1; }
+.dia-monto { font-size:0.58rem; font-weight:700; color:var(--oliva-dark); line-height:1; }
+.dia-punto { width:5px; height:5px; border-radius:50%; background:var(--naranja); margin-top:1px; }
+
+.acciones-cal { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+.btn-accion { flex:1; min-width:calc(50% - 3px); padding:7px; border:1px solid var(--arena-dark); border-radius:10px; background:white; font-size:0.72rem; font-weight:700; cursor:pointer; color:var(--gris); font-family:inherit; }
+.btn-accion:active { background:var(--oliva-light); }
+
+.resumen-seleccion { background:linear-gradient(135deg,var(--oliva-deep),var(--oliva)); border-radius:16px; padding:16px; margin-bottom:14px; color:white; }
+.res-total { font-family:'Playfair Display',serif; font-size:2.2rem; font-weight:900; line-height:1; }
+.res-label { font-size:0.72rem; opacity:0.75; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.res-dias { font-size:0.82rem; opacity:0.85; margin-top:6px; }
+
+.tarjeta { background:white; border-radius:14px; border:1px solid var(--arena-dark); padding:14px; margin-bottom:10px; }
+.tarjeta-titulo { font-size:0.72rem; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; }
+
+.metodo-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--arena); }
+.metodo-row:last-child { border-bottom:none; }
+.metodo-nombre { font-size:0.85rem; color:var(--gris); }
+.metodo-monto { font-weight:900; color:var(--oliva-dark); font-size:0.9rem; }
+.metodo-pct { font-size:0.72rem; color:var(--gris); background:var(--oliva-light); padding:2px 6px; border-radius:10px; margin-left:6px; }
+
+.prod-row { margin-bottom:10px; }
+.prod-header { display:flex; justify-content:space-between; margin-bottom:3px; }
+.prod-nombre { font-size:0.8rem; font-weight:700; color:var(--texto); }
+.prod-detalle { font-size:0.75rem; color:var(--gris); }
+.barra-bg { background:var(--oliva-light); border-radius:20px; height:7px; }
+.barra-fill { background:linear-gradient(90deg,var(--oliva-dark),var(--naranja)); border-radius:20px; height:7px; transition:width 0.4s; }
+
+.dia-detalle { background:white; border-radius:12px; border:1px solid var(--arena-dark); margin-bottom:8px; overflow:hidden; }
+.dia-det-header { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--arena); cursor:pointer; }
+.dia-det-fecha { font-weight:700; font-size:0.88rem; color:var(--texto); }
+.dia-det-total { font-weight:900; color:var(--oliva-dark); font-size:0.9rem; }
+.dia-det-body { padding:8px 12px; display:none; border-top:1px solid var(--arena-dark); }
+.dia-det-body.open { display:block; }
+.venta-item { display:flex; justify-content:space-between; padding:4px 0; font-size:0.8rem; border-bottom:1px solid var(--arena); color:var(--gris); }
+.venta-item:last-child { border-bottom:none; }
+.empty { text-align:center; padding:30px 20px; color:#bbb; }
+.pb { padding-bottom:30px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" height="38" style="flex-shrink:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));" role="img" aria-label="VAO Sistemas">
+  <defs>
+    <linearGradient id="rbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#21A8F6"/><stop offset="100%" stop-color="#0B49E8"/></linearGradient>
+    <linearGradient id="rgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6BCB17"/><stop offset="100%" stop-color="#24A72E"/></linearGradient>
+    <linearGradient id="rsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFC21A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+    <linearGradient id="rhg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0B49E8"/><stop offset="28%" stop-color="#16A6EF"/><stop offset="50%" stop-color="#43B02A"/><stop offset="70%" stop-color="#D6CF00"/><stop offset="86%" stop-color="#FFB000"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+  </defs>
+  <path d="M105 65 L305 65 L515 305 L710 65 L900 65 L525 430 L470 430 Z" fill="url(#rbg)"/>
+  <path d="M565 405 L900 90 L1165 385 L1015 385 L900 240 L800 350 L1005 350 L1065 420 L700 420 Z" fill="url(#rgg)"/>
+  <path d="M1228 351 A115 115 0 0 1 1458 351 Z" fill="url(#rsg)"/>
+  <g stroke="#FFB000" stroke-width="15" stroke-linecap="round"><line x1="1343" y1="165" x2="1343" y2="112"/><line x1="1230" y1="214" x2="1190" y2="174"/><line x1="1456" y1="214" x2="1496" y2="174"/></g>
+  <path d="M70 490 C 355 395, 650 355, 980 352 C 1210 350, 1410 370, 1560 410" fill="none" stroke="url(#rhg)" stroke-width="15" stroke-linecap="round"/>
+</svg>
+    <div>
+        <div class="header-titulo">SmartPOS</div>
+        <div class="header-sub">Reportes</div>
+    </div>
+    <a href="pos.html?p=" class="btn-volver" id="btnVolverPos">← Volver</a>
+</div>
+
+<div id="appContent">
+    <div class="loading"><div class="spinner"></div><div>Cargando ventas...</div></div>
+</div>
+
+<script>
+const APP_VERSION = 1;
+const API_URL = 'https://script.google.com/macros/s/AKfycbwwy4ZAd7OARxFE79JRm0tYnctVEyNhiCQjxr-Gc73GrEGaEytsldJw4gnu_vSndgSe1g/exec';
+// Paso 11: reportes.html no tenía prefijo ni token propios — por eso
+// getVentas se llamaba sin prefijo y siempre traía las ventas de "NE"
+// (el default del backend). Se usa exactamente el mismo esquema que ya
+// usa pos.html: ?p=XX en la URL + el token que pos.html ya guardó en
+// localStorage al loguearse (vao_token_XX) — no se crea otro sistema de
+// sesión nuevo.
+const PREFIJO = (new URLSearchParams(window.location.search).get('p') || '').toUpperCase();
+const TOKEN_KEY = 'vao_token_' + PREFIJO;
+function _tokenActual() { return localStorage.getItem(TOKEN_KEY) || ''; }
+document.addEventListener('DOMContentLoaded', function () {
+    var btnVolver = document.getElementById('btnVolverPos');
+    if (btnVolver) btnVolver.href = 'pos.html?p=' + PREFIJO;
+});
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DIAS_SEM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+let todasVentas = [];
+let mesActual = new Date().getMonth();
+let anioActual = new Date().getFullYear();
+let diasSeleccionados = new Set();
+let metodosActivos = new Set(['TODOS']);
+
+async function init() {
+    if (!PREFIJO || !_tokenActual()) {
+        document.getElementById('appContent').innerHTML =
+            '<div class="loading" style="color:var(--rojo);">❌ Sesión no encontrada. Volvé a entrar desde el POS.</div>';
+        return;
+    }
+    try {
+        const url = API_URL + '?action=getVentas&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify({ token: _tokenActual() }));
+        const r = await fetch(url, { redirect:'follow' });
+        const data = await r.json();
+        if (data.error) {
+            document.getElementById('appContent').innerHTML =
+                '<div class="loading" style="color:var(--rojo);">❌ ' + data.error + '</div>';
+            return;
+        }
+        todasVentas = data.ventas || [];
+        diasSeleccionados.add(new Date().toISOString().slice(0,10));
+        renderApp();
+    } catch(e) {
+        document.getElementById('appContent').innerHTML =
+            '<div class="loading" style="color:var(--rojo);">❌ Error al cargar. Verificá la conexión.</div>';
+    }
+}
+
+function getMetodosDisponibles() {
+    const set = new Set();
+    todasVentas.forEach(v => {
+        if (v.metodo.includes('+')) {
+            v.metodo.split('+').forEach(m => { const c = m.replace(/\(.*\)/,'').trim(); if(c) set.add(c); });
+        } else { set.add(v.metodo); }
+    });
+    return Array.from(set).sort();
+}
+
+function filtrarVentas(ventas) {
+    if (metodosActivos.has('TODOS')) return ventas;
+    return ventas.filter(v => Array.from(metodosActivos).some(m => v.metodo.includes(m)));
+}
+
+function ventasDelMes() {
+    return todasVentas.filter(v => {
+        const [a,m] = v.fecha.split('-').map(Number);
+        return a === anioActual && m-1 === mesActual;
+    });
+}
+
+function ventasSeleccionadas() {
+    const dias = Array.from(diasSeleccionados);
+    return filtrarVentas(todasVentas.filter(v => dias.includes(v.fecha)));
+}
+
+function calcularTotales(ventas) {
+    const metodos = {};
+    let total = 0;
+    ventas.forEach(v => {
+        const t = parseFloat(v.total) || 0;
+        if (v.metodo.includes('+')) {
+            const match = v.metodo.match(/([A-Z\s]+)\+([A-Z\s]+)\s*\(\$?([\d.]+)\+\$?([\d.]+)\)/i);
+            if (match) {
+                const m1 = match[1].trim(), m2 = match[2].trim();
+                const t1 = parseFloat(match[3].replace(/\./g,'')) || 0;
+                const t2 = parseFloat(match[4].replace(/\./g,'')) || 0;
+                metodos[m1] = (metodos[m1]||0) + t1;
+                metodos[m2] = (metodos[m2]||0) + t2;
+                total += t;
+            } else {
+                metodos[v.metodo] = (metodos[v.metodo]||0) + t;
+                total += t;
+            }
+        } else {
+            metodos[v.metodo] = (metodos[v.metodo]||0) + t;
+            total += t;
+        }
+    });
+    return { metodos, total };
+}
+
+function calcularTopProductos(ventas) {
+    const prods = {};
+    ventas.forEach(v => {
+        if (!v.nombre) return;
+        if (!prods[v.nombre]) prods[v.nombre] = { qty:0, total:0 };
+        prods[v.nombre].qty   += parseFloat(v.qty)   || 0;
+        prods[v.nombre].total += parseFloat(v.total) || 0;
+    });
+    return Object.entries(prods).sort((a,b) => b[1].total-a[1].total).slice(0,15)
+        .map(([n,d]) => ({ nombre:n, qty:d.qty, total:d.total }));
+}
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+
+function renderApp() {
+    const ventasMes = ventasDelMes();
+    const ventasSel = ventasSeleccionadas();
+    const totSel = calcularTotales(ventasSel);
+    const topSel = calcularTopProductos(ventasSel);
+    const metodos = getMetodosDisponibles();
+    const hoyStr = new Date().toISOString().slice(0,10);
+
+    // Agrupar por día (MES)
+    const porDia = {};
+    ventasMes.forEach(v => {
+        if (!porDia[v.fecha]) porDia[v.fecha] = { ventas:[], total:0 };
+        porDia[v.fecha].ventas.push(v);
+        porDia[v.fecha].total += parseFloat(v.total)||0;
+    });
+
+    // Calendario
+    const primerDia = new Date(anioActual, mesActual, 1).getDay();
+    const diasEnMes = new Date(anioActual, mesActual+1, 0).getDate();
+    let calHTML = '<div class="cal-semanas">' + DIAS_SEM.map(d => '<div class="cal-dia-nombre">'+d+'</div>').join('') + '</div><div class="cal-dias">';
+    for (let i=0; i<primerDia; i++) calHTML += '<div class="cal-dia vacio"></div>';
+    for (let d=1; d<=diasEnMes; d++) {
+        const ds = anioActual+'-'+String(mesActual+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+        const info = porDia[ds];
+        const sel = diasSeleccionados.has(ds);
+        const esHoy = ds === hoyStr;
+        let cls = 'cal-dia' + (info?' tiene-ventas':'') + (sel?' seleccionado':'') + (esHoy?' hoy':'');
+        const monto = info ? '<div class="dia-monto">'+fmt(info.total)+'</div>' : '';
+        const punto = (info && !sel) ? '<div class="dia-punto"></div>' : '';
+        calHTML += '<div class="'+cls+'" onclick="toggleDia(\''+ds+'\')"><div class="dia-num">'+d+'</div>'+monto+punto+'</div>';
+    }
+    calHTML += '</div>';
+
+    // Filtros
+    const filtrosHTML = '<div class="filtros-metodo">' +
+        '<button class="chip-metodo'+(metodosActivos.has('TODOS')?' activo':'')+'" onclick="toggleMetodo(\'TODOS\')">📋 Todos</button>' +
+        metodos.map(m => {
+            const ic = m.includes('EFECTIVO')?'💵':m.includes('TRANSF')?'📱':m.includes('QR')?'📲':'💳';
+            return '<button class="chip-metodo'+(metodosActivos.has(m)?' activo':'')+'" onclick="toggleMetodo(\''+m+'\')">'+ic+' '+m+'</button>';
+        }).join('') + '</div>';
+
+    // Resumen
+    const nDias = diasSeleccionados.size;
+    const diasLabel = nDias===0?'Ningún día seleccionado':nDias===1?'1 día seleccionado':nDias+' días seleccionados';
+
+    // Métodos breakdown
+    const metodosRows = Object.entries(totSel.metodos).sort((a,b)=>b[1]-a[1]).map(([m,t]) => {
+        const pct = totSel.total>0 ? Math.round(t/totSel.total*100) : 0;
+        return '<div class="metodo-row"><span class="metodo-nombre">'+m+'</span><span><strong class="metodo-monto">'+fmt(t)+'</strong><span class="metodo-pct">'+pct+'%</span></span></div>';
+    }).join('');
+
+    // Top productos
+    const maxTop = topSel.length ? topSel[0].total : 1;
+    const topsHTML = topSel.length ? topSel.map((p,i) => {
+        const pct = Math.round(p.total/maxTop*100);
+        const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+        return '<div class="prod-row"><div class="prod-header"><span class="prod-nombre">'+medal+' '+p.nombre.substring(0,32)+'</span><span class="prod-detalle">'+Math.round(p.qty)+' u · '+fmt(p.total)+'</span></div><div class="barra-bg"><div class="barra-fill" style="width:'+pct+'%"></div></div></div>';
+    }).join('') : '<div class="empty">Sin ventas en la selección</div>';
+
+    // Detalle días
+    const diasOrdenados = Array.from(diasSeleccionados).sort();
+    const detalleHTML = diasOrdenados.map(ds => {
+        const vDia = filtrarVentas(todasVentas.filter(v => v.fecha===ds));
+        const totDia = vDia.reduce((s,v)=>s+(parseFloat(v.total)||0),0);
+        const [a,m,d] = ds.split('-');
+        const fechaLabel = parseInt(d)+' de '+MESES[parseInt(m)-1];
+        const items = vDia.length ?
+            vDia.map(v=>'<div class="venta-item"><span>'+v.hora+' · '+v.nombre.substring(0,28)+'</span><span>'+fmt(v.total)+'</span></div>').join('') :
+            '<div style="font-size:0.8rem;color:#bbb;padding:6px 0;">Sin ventas este día</div>';
+        return '<div class="dia-detalle"><div class="dia-det-header" onclick="toggleDetalle(this)"><span class="dia-det-fecha">📅 '+fechaLabel+'</span><span class="dia-det-total">'+fmt(totDia)+'</span></div><div class="dia-det-body">'+items+'</div></div>';
+    }).join('');
+
+    document.getElementById('appContent').innerHTML =
+        '<div class="seccion">' +
+            '<div class="mes-nav"><button class="btn-mes" onclick="cambiarMes(-1)">‹</button><span class="mes-nombre">'+MESES[mesActual]+' '+anioActual+'</span><button class="btn-mes" onclick="cambiarMes(1)">›</button></div>' +
+            '<div class="seccion-titulo">Filtrar por método</div>' + filtrosHTML +
+            '<div class="seccion-titulo">Seleccioná los días</div>' +
+            '<div class="calendario">'+calHTML+'</div>' +
+            '<div class="acciones-cal">' +
+                '<button class="btn-accion" onclick="selTodo()">✅ Todo el mes</button>' +
+                '<button class="btn-accion" onclick="deselTodo()">⬜ Ninguno</button>' +
+                '<button class="btn-accion" onclick="selSemana()">📅 Esta semana</button>' +
+                '<button class="btn-accion" onclick="selHoy()">📍 Hoy</button>' +
+            '</div>' +
+            '<div class="resumen-seleccion"><div class="res-label">Total seleccionado</div><div class="res-total">'+fmt(totSel.total)+'</div><div class="res-dias">'+diasLabel+' · '+ventasSel.length+' transacciones</div></div>' +
+            (Object.keys(totSel.metodos).length ? '<div class="tarjeta"><div class="tarjeta-titulo">💳 Por método de pago</div>'+metodosRows+'</div>' : '') +
+            '<div class="tarjeta"><div class="tarjeta-titulo">🏆 Top productos</div>'+topsHTML+'</div>' +
+            (diasOrdenados.length ? '<div class="seccion-titulo" style="margin-top:4px;">📋 Detalle por día</div>'+detalleHTML : '') +
+        '</div><div class="pb"></div>';
+}
+
+function toggleDia(ds) {
+    diasSeleccionados.has(ds) ? diasSeleccionados.delete(ds) : diasSeleccionados.add(ds);
+    renderApp();
+}
+function toggleMetodo(m) {
+    if (m==='TODOS') { metodosActivos.clear(); metodosActivos.add('TODOS'); }
+    else {
+        metodosActivos.delete('TODOS');
+        metodosActivos.has(m) ? metodosActivos.delete(m) : metodosActivos.add(m);
+        if (metodosActivos.size===0) metodosActivos.add('TODOS');
+    }
+    renderApp();
+}
+function cambiarMes(d) {
+    mesActual += d;
+    if (mesActual<0) { mesActual=11; anioActual--; }
+    if (mesActual>11) { mesActual=0; anioActual++; }
+    diasSeleccionados.clear();
+    renderApp();
+}
+function selTodo() {
+    const n = new Date(anioActual,mesActual+1,0).getDate();
+    for (let d=1;d<=n;d++) diasSeleccionados.add(anioActual+'-'+String(mesActual+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'));
+    renderApp();
+}
+function deselTodo() { diasSeleccionados.clear(); renderApp(); }
+function selHoy() { diasSeleccionados.clear(); diasSeleccionados.add(new Date().toISOString().slice(0,10)); renderApp(); }
+function selSemana() {
+    diasSeleccionados.clear();
+    const hoy = new Date(), ds = hoy.getDay();
+    for (let i=0;i<7;i++) { const d=new Date(hoy); d.setDate(hoy.getDate()-ds+i); diasSeleccionados.add(d.toISOString().slice(0,10)); }
+    renderApp();
+}
+function toggleDetalle(h) { h.nextElementSibling.classList.toggle('open'); }
+
+init();
+</script>
+</body>
+</html>
