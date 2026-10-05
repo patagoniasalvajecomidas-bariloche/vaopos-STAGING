@@ -201,7 +201,18 @@
 </style>
 </head>
 <body>
+<!-- STAGING-ONLY:INICIO -->
+<style>
+@keyframes vaoStgPulso {
+    0%, 94%, 100% { transform: scale(1); }
+    96% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255,120,0,.35); }
+    98% { transform: scale(1); }
+}
+#vaoStagingBadge { animation: vaoStgPulso 30s ease-in-out infinite; transform-origin: left bottom; }
+@media (prefers-reduced-motion: reduce) { #vaoStagingBadge { animation: none; } }
+</style>
 <div id="vaoStagingBadge" style="position:fixed;left:6px;bottom:6px;z-index:99999;padding:3px 8px;border-radius:10px;background:rgba(255,120,0,0.88);color:#fff;font:600 11px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.25);">🧪 STAGING · sistema de pruebas</div>
+<!-- STAGING-ONLY:FIN -->
 
   <div class="stage">
     <div class="mark">
