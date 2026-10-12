@@ -98,6 +98,23 @@ body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--t
 .venta-item { display:flex; justify-content:space-between; padding:4px 0; font-size:0.8rem; border-bottom:1px solid var(--arena); color:var(--gris); }
 .venta-item:last-child { border-bottom:none; }
 .empty { text-align:center; padding:30px 20px; color:#bbb; }
+/* V3: tickets agrupados por VentaId */
+.venta-ticket { cursor:pointer; color:var(--texto); }
+.venta-ticket .tk-meta { color:var(--gris); }
+.venta-ticket .tk-ver { color:var(--oliva); font-weight:700; margin-left:6px; }
+.venta-suelta .tk-sin { font-size:0.68rem; color:#999; margin-left:4px; }
+.tk-bg { position:fixed; inset:0; background:rgba(17,24,39,0.55); z-index:2000; display:flex; align-items:center; justify-content:center; padding:16px; }
+.tk-sheet { background:white; border-radius:16px; width:100%; max-width:420px; max-height:85dvh; overflow-y:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.25); }
+.tk-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.tk-titulo { font-weight:900; font-size:1rem; color:var(--oliva-dark); }
+.tk-id { font-size:0.7rem; color:var(--gris); word-break:break-all; margin-top:2px; }
+.tk-cerrar { border:none; background:var(--arena); border-radius:50%; width:32px; height:32px; font-size:1rem; cursor:pointer; flex-shrink:0; }
+.tk-dato { font-size:0.8rem; color:var(--gris); margin-bottom:4px; }
+.tk-fila { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--arena); font-size:0.85rem; }
+.tk-prod { color:var(--texto); }
+.tk-unit { font-size:0.72rem; color:var(--gris); }
+.tk-sub { font-weight:700; white-space:nowrap; }
+.tk-total { display:flex; justify-content:space-between; margin-top:10px; font-weight:900; font-size:1.05rem; color:var(--oliva-dark); }
 .pb { padding-bottom:30px; }
 </style>
 </head>
@@ -141,7 +158,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--t
 </div>
 
 <script>
-const APP_VERSION = 2;
+const APP_VERSION = 3;
 const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
 // Paso 11: reportes.html no tenía prefijo ni token propios — por eso
 // getVentas se llamaba sin prefijo y siempre traía las ventas de "NE"
@@ -323,6 +340,7 @@ function renderApp() {
     }).join('') : '<div class="empty">Sin ventas en la selección</div>';
 
     // Detalle días
+    _ticketsV3 = []; // V3: se reconstruye en cada render
     const diasOrdenados = Array.from(diasSeleccionados).sort();
     const detalleHTML = diasOrdenados.map(ds => {
         const vDia = filtrarVentas(todasVentas.filter(v => v.fecha===ds));
@@ -330,7 +348,7 @@ function renderApp() {
         const [a,m,d] = ds.split('-');
         const fechaLabel = parseInt(d)+' de '+MESES[parseInt(m)-1];
         const items = vDia.length ?
-            vDia.map(v=>'<div class="venta-item"><span>'+v.hora+' · '+v.nombre.substring(0,28)+'</span><span>'+fmt(v.total)+'</span></div>').join('') :
+            _detalleItemsHTML(vDia) :
             '<div style="font-size:0.8rem;color:#bbb;padding:6px 0;">Sin ventas este día</div>';
         return '<div class="dia-detalle"><div class="dia-det-header" onclick="toggleDetalle(this)"><span class="dia-det-fecha">📅 '+fechaLabel+'</span><span class="dia-det-total">'+fmt(totDia)+'</span></div><div class="dia-det-body">'+items+'</div></div>';
     }).join('');
@@ -388,6 +406,77 @@ function selSemana() {
     renderApp();
 }
 function toggleDetalle(h) { h.nextElementSibling.classList.toggle('open'); }
+
+// ========== V3: TICKETS AGRUPADOS POR VentaId ==========
+// Solo se agrupan filas con el MISMO VentaId (columna G de VENTAS_XX).
+// Las filas sin VentaId (ventas anteriores a V10 y fiados) se muestran
+// sueltas, una por una, como en V2: no se inventa ninguna agrupación.
+// Los totales, filtros y el top de productos siguen calculándose por fila.
+let _ticketsV3 = [];
+
+function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _agruparPorTicket(filas) {
+    const grupos = [];
+    const porId = {};
+    filas.forEach(v => {
+        const id = String(v.ventaId || '').trim();
+        if (!id) { grupos.push({ suelta: true, fila: v }); return; }
+        if (!porId[id]) { porId[id] = { suelta: false, ventaId: id, filas: [], total: 0 }; grupos.push(porId[id]); }
+        porId[id].filas.push(v);
+        porId[id].total += parseFloat(v.total) || 0;
+    });
+    return grupos;
+}
+
+function _detalleItemsHTML(vDia) {
+    return _agruparPorTicket(vDia).map(g => {
+        if (g.suelta) {
+            const v = g.fila;
+            return '<div class="venta-item venta-suelta"><span>' + _esc(v.hora) + ' · ' + _esc(v.nombre.substring(0,28)) +
+                   '<span class="tk-sin">(sin n.º de ticket)</span></span><span>' + fmt(v.total) + '</span></div>';
+        }
+        const idx = _ticketsV3.push(g) - 1;
+        const v0 = g.filas[0];
+        const n = g.filas.length;
+        return '<div class="venta-item venta-ticket" onclick="abrirTicket(' + idx + ')"><span>' + _esc(v0.hora) + ' · 🧾 ' + n +
+               (n === 1 ? ' producto' : ' productos') + ' <span class="tk-meta">· ' + _esc(v0.metodo) + '</span>' +
+               '<span class="tk-ver">Ver ›</span></span><span>' + fmt(g.total) + '</span></div>';
+    }).join('');
+}
+
+function abrirTicket(idx) {
+    const g = _ticketsV3[idx];
+    if (!g) return;
+    cerrarTicket();
+    const v0 = g.filas[0];
+    const [a, m, d] = String(v0.fecha).split('-');
+    const filasHTML = g.filas.map(v =>
+        '<div class="tk-fila"><div><div class="tk-prod">' + _esc((parseFloat(v.qty) || 0) + ' × ' + v.nombre) + '</div>' +
+        '<div class="tk-unit">' + fmt(v.precio) + ' c/u</div></div><div class="tk-sub">' + fmt(v.total) + '</div></div>'
+    ).join('');
+    const bg = document.createElement('div');
+    bg.className = 'tk-bg';
+    bg.id = 'ticketV3';
+    bg.onclick = e => { if (e.target === bg) cerrarTicket(); };
+    bg.innerHTML =
+        '<div class="tk-sheet" role="dialog" aria-label="Detalle del ticket">' +
+            '<div class="tk-head"><div><div class="tk-titulo">🧾 Ticket</div><div class="tk-id">' + _esc(g.ventaId) + '</div></div>' +
+            '<button class="tk-cerrar" onclick="cerrarTicket()" aria-label="Cerrar">✕</button></div>' +
+            '<div class="tk-dato">📅 ' + _esc(d + '/' + m + '/' + a) + ' · 🕐 ' + _esc(v0.hora) + '</div>' +
+            '<div class="tk-dato">💳 ' + _esc(v0.metodo) + '</div>' +
+            filasHTML +
+            '<div class="tk-total"><span>Total</span><span>' + fmt(g.total) + '</span></div>' +
+        '</div>';
+    document.body.appendChild(bg);
+}
+
+function cerrarTicket() {
+    const el = document.getElementById('ticketV3');
+    if (el) el.remove();
+}
 
 init();
 </script>
