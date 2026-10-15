@@ -129,6 +129,21 @@ body {
 .btn-tool.hoy      { background: rgba(90,158,111,0.7); }
 .btn-tool.cerrar   { background: rgba(214,66,66,0.6); }
         .btn-tool.stats    { background: rgba(90,158,111,0.85); }
+.btn-tool.fiados   { background: rgba(142,68,173,0.75); } /* V22: antes no tenía fondo y el texto blanco no se leía */
+/* V22 (B7): en celulares chicos, ícono arriba y texto abajo — no se corta */
+@media (max-width: 480px) {
+    .toolbar { padding: 6px 6px; gap: 4px; }
+    .btn-tool { flex-direction: column; gap: 1px; padding: 5px 2px; border-radius: 12px; font-size: 0.6rem; letter-spacing: 0; line-height: 1.1; min-width: 0; }
+    .btn-tool .ico { font-size: 1rem; }
+}
+.btn-tool .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* V22 (P3): filtro por categoría en la lista ☰ */
+.chips-cat { display:flex; gap:6px; overflow-x:auto; padding:8px 10px; border-bottom:1px solid #f0ecf7; position:sticky; top:0; background:white; z-index:1; }
+.chip-cat { flex:0 0 auto; padding:6px 12px; border-radius:16px; border:1.5px solid var(--lavanda-light); background:white; font-size:0.75rem; font-weight:700; color:var(--lavanda-dark); cursor:pointer; white-space:nowrap; }
+.chip-cat.activo { background:var(--lavanda-dark); border-color:var(--lavanda-dark); color:white; }
+/* V22 (A1): aviso de borrador recuperado */
+.aviso-borrador { display:flex; justify-content:space-between; align-items:center; gap:8px; background:#FFF8E1; border:1px solid #FFE082; color:#795548; border-radius:10px; padding:8px 10px; font-size:0.78rem; margin:0 0 12px; }
+.aviso-borrador button { border:none; background:none; color:#C62828; font-weight:800; cursor:pointer; font-size:0.78rem; white-space:nowrap; }
 
 /* ===== BUSCADOR ===== */
 .buscador-wrap {
@@ -340,7 +355,11 @@ body {
 /* ===== MODAL BASE ===== */
 .modal-bg {
     position: fixed;
-    inset: 0;
+    /* V22 (A3): la ventana ocupa solo la parte VISIBLE de la pantalla: si el
+       teclado del celular sube, la ventana sube con él y no queda tapada. */
+    left: 0; right: 0;
+    top: var(--vv-top, 0px);
+    height: var(--vv-alto, 100%);
     background: rgba(61,50,68,0.75);
     z-index: 1000;
     display: flex;
@@ -359,7 +378,7 @@ body {
     border-radius: 24px 24px 0 0;
     width: 100%;
     max-width: 480px;
-    max-height: 92vh;
+    max-height: calc(var(--vv-alto, 100vh) * 0.94);
     padding-bottom: env(safe-area-inset-bottom);
     display: flex;
     flex-direction: column;
@@ -638,12 +657,12 @@ body {
 
 <!-- TOOLBAR -->
 <div class="toolbar">
-    <button class="btn-tool ingreso" id="btnIngreso" onclick="abrirIngreso()">📦 Ingresar</button>
-    <button class="btn-tool ajuste" id="btnAjuste" onclick="abrirAjuste()">✏️ Ajustar</button>
-    <button class="btn-tool hoy" id="btnHoy" onclick="abrirResumen()">📋 Hoy</button>
-    <button class="btn-tool stats" id="btnReportes" onclick="window.location.href='reportes.html?p='+PREFIJO">📊 Reportes</button>
-    <button class="btn-tool" id="btnFiados" onclick="window.location.href='fiados.html?p='+PREFIJO">🧾 Fiados</button>
-    <button class="btn-tool cerrar" onclick="irAlInicio()">🚪 Salir</button>
+    <button class="btn-tool ingreso" id="btnIngreso" onclick="abrirIngreso()"><span class="ico">📦</span><span class="txt">Ingresar</span></button>
+    <button class="btn-tool ajuste" id="btnAjuste" onclick="abrirAjuste()"><span class="ico">✏️</span><span class="txt">Ajustar</span></button>
+    <button class="btn-tool hoy" id="btnHoy" onclick="abrirResumen()"><span class="ico">📋</span><span class="txt">Hoy</span></button>
+    <button class="btn-tool stats" id="btnReportes" onclick="window.location.href='reportes.html?p='+PREFIJO"><span class="ico">📊</span><span class="txt">Reportes</span></button>
+    <button class="btn-tool fiados" id="btnFiados" onclick="window.location.href='fiados.html?p='+PREFIJO"><span class="ico">🧾</span><span class="txt">Fiados</span></button>
+    <button class="btn-tool cerrar" onclick="irAlInicio()"><span class="ico">🚪</span><span class="txt">Salir</span></button>
 </div>
 
 <!-- BUSCADOR -->
@@ -792,6 +811,7 @@ body {
             <button class="modal-cerrar" onclick="cerrarIngreso()">✕</button>
         </div>
         <div class="form-scroll">
+            <div class="aviso-borrador" id="ingBorradorAviso" style="display:none;"><span>📝 Recuperé lo que estabas escribiendo</span><button onclick="descartarBorradorIngreso()">🗑 Empezar de cero</button></div>
             <div class="form-grupo">
                 <label class="form-label">Producto *</label>
                 <input type="text" class="form-input" id="ingProducto"
@@ -849,6 +869,7 @@ body {
         <div style="overflow-y:auto;flex:1;min-height:0;padding:0 20px 20px;">
             <div id="ajusteResultados" style="margin-top:8px;display:none;border:1px solid var(--lavanda-pale);border-radius:10px;overflow:hidden;"></div>
             <div id="ajustePanel" style="display:none;padding-top:12px;">
+                <div class="aviso-borrador" id="ajusteBorradorAviso" style="display:none;"><span id="ajusteBorradorTxt">📝 Recuperé lo que estabas escribiendo</span><button onclick="descartarBorradorAjuste()">🗑 Empezar de cero</button></div>
                 <div id="ajusteNombre" style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:var(--lavanda-dark);margin-bottom:4px;"></div>
                 <div id="ajusteStockActual" style="font-size:0.82rem;color:var(--gris);margin-bottom:14px;"></div>
                 <div class="form-grupo">
@@ -902,9 +923,34 @@ if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 21;
+const APP_VERSION = 22;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
+
+// ========== V22 (B3): llamada al servidor, por POST si la URL es muy larga ==========
+// GET como siempre; si la dirección supera ~1.900 caracteres (carrito grande)
+// se manda por POST al MISMO ruteo del backend (doPost, v026).
+const LARGO_MAX_URL = 1900;
+async function _llamarAPI(action, payload) {
+    const url = API_URL + '?action=' + action + '&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify(payload));
+    let r;
+    if (url.length <= LARGO_MAX_URL) {
+        r = await fetch(url, { redirect: 'follow' });
+    } else {
+        // text/plain: el navegador no hace consulta previa (CORS) y Apps Script lo acepta.
+        r = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                   body: JSON.stringify({ action: action, prefijo: PREFIJO, data: payload }) });
+    }
+    return r.json();
+}
+
+// ========== V22 (A1): borradores locales por negocio y formulario ==========
+// Nunca guardan PIN, tokens ni claves. Se borran al guardar con éxito o al
+// "Empezar de cero" (con confirmación).
+function _borradorKey(form) { return 'vao_borrador_' + form + '_' + PREFIJO; }
+function _guardarBorrador(form, datos) { try { localStorage.setItem(_borradorKey(form), JSON.stringify(Object.assign({ _t: Date.now() }, datos))); } catch (e) {} }
+function _leerBorrador(form) { try { return JSON.parse(localStorage.getItem(_borradorKey(form)) || 'null'); } catch (e) { return null; } }
+function _borrarBorrador(form) { try { localStorage.removeItem(_borradorKey(form)); } catch (e) {} }
 
 // ========== SESIÓN CLIENTE (PIN) ==========
 const TOKEN_KEY = 'vao_token_' + PREFIJO;
@@ -988,6 +1034,7 @@ async function verificarSesionCliente() {
             cargarProductos().then(function () {
                 programarRecordatorioCierre();
                 sincronizarCarritoConProductos();
+                verificarPendientesAlIniciar(); // V22 (B1)
             });
         }
     } catch (e) {
@@ -1206,11 +1253,20 @@ function toggleListaTodos() {
     if (listaTodosAbierta) renderListaTodos();
 }
 
+let categoriaLista = ''; // V22 (P3): '' = todas
+function _escHTML(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function elegirCategoriaLista(cat) { categoriaLista = cat; renderListaTodos(); }
 function renderListaTodos() {
     const container = document.getElementById('listaTodosItems');
+    const todasCats = [...new Set(productos.map(p => p.category || 'GENERAL'))].sort();
+    if (categoriaLista && !todasCats.includes(categoriaLista)) categoriaLista = '';
+    const chips = todasCats.length > 1
+        ? '<div class="chips-cat"><button class="chip-cat' + (categoriaLista ? '' : ' activo') + '" data-cat="" onclick="elegirCategoriaLista(this.dataset.cat)">Todas</button>' +
+          todasCats.map(c => '<button class="chip-cat' + (c === categoriaLista ? ' activo' : '') + '" data-cat="' + _escHTML(c) + '" onclick="elegirCategoriaLista(this.dataset.cat)">' + _escHTML(c) + '</button>').join('') + '</div>'
+        : '';
     // Agrupar por categoría
     const cats = {};
-    productos.forEach(p => {
+    productos.filter(p => !categoriaLista || (p.category || 'GENERAL') === categoriaLista).forEach(p => {
         const c = p.category || 'GENERAL';
         if (!cats[c]) cats[c] = [];
         cats[c].push(p);
@@ -1237,7 +1293,7 @@ function renderListaTodos() {
                 '</div></div>';
         });
     });
-    container.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--gris);">Sin productos</div>';
+    container.innerHTML = chips + (html || '<div style="padding:20px;text-align:center;color:var(--gris);">Sin productos</div>');
 }
 
 function agregarDesdeLista(id) {
@@ -1474,6 +1530,7 @@ function limpiarVenta() {
     }
     if (ventaActual.length && !confirm('¿Limpiar la venta actual?')) return;
     ventaActual = [];
+    _borrarBorrador('fiado'); // V22: limpiar también descarta el cliente del fiado escrito
     guardarCarrito(); renderVenta();
 }
 
@@ -1498,6 +1555,10 @@ function abrirConfirm() {
     if (fiadoEnCurso) {
         inCliente.value = enCurso.cliente || '';
         inTelefono.value = enCurso.telefono || '';
+    } else {
+        // V22 (A1): lo que se había escrito del cliente del fiado no se pierde.
+        const bf = _leerBorrador('fiado');
+        if (bf && !inCliente.value && !inTelefono.value) { inCliente.value = bf.cliente || ''; inTelefono.value = bf.telefono || ''; }
     }
     inCliente.readOnly = fiadoEnCurso;
     inTelefono.readOnly = fiadoEnCurso;
@@ -1703,9 +1764,7 @@ async function confirmarVenta() {
             precioOriginal: i.precioOriginal || 0
         }));
         const payload = { token: _tokenActual(), ventaId: enCurso.ventaId, items: ventaData, metodoPago: enCurso.metodoPago };
-        const url = API_URL + '?action=vender&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify(payload));
-        const r = await fetch(url, { redirect: 'follow' });
-        resp = await r.json();
+        resp = await _llamarAPI('vender', payload); // V22: POST si el carrito es muy grande
     } catch(e) {
         resp = null;
         console.warn('Sin conexión:', e);
@@ -1732,7 +1791,7 @@ async function confirmarVenta() {
         btn.disabled = false;
         btn.textContent = '✅ Confirmar';
         if (!resp) {
-            mostrarToast('❌ No se pudo confirmar la venta. Reintentá.', 'rojo');
+            mostrarToast(MSG_SIN_RESPUESTA_VENTA, 'rojo');
         } else if (resp.ocupado) {
             mostrarToast('❌ Sistema ocupado. Reintentá la venta.', 'rojo');
         } else {
@@ -1743,6 +1802,7 @@ async function confirmarVenta() {
 
     // Venta resuelta por el servidor (nueva o ya existente).
     localStorage.removeItem(_ventaEnCursoKey());
+    _borrarBorrador('fiado'); // V22
 
     // V12: después de una respuesta definitiva, la verdad de lo vendido es
     // `procesados` (lo que el backend escribió en VENTAS). El carrito solo se
@@ -1844,9 +1904,7 @@ async function confirmarVentaFiado() {
             precioOriginal: i.precioOriginal || 0
         }));
         const payload = { token: _tokenActual(), items: ventaData, metodoPago: 'fiado', idOperacion: idOperacion, cliente: enCurso.cliente, telefono: enCurso.telefono };
-        const url = API_URL + '?action=venderFiado&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify(payload));
-        const r = await fetch(url, { redirect: 'follow' });
-        resp = await r.json();
+        resp = await _llamarAPI('venderFiado', payload); // V22: POST si el carrito es muy grande
     } catch (e) {
         resp = null;
         console.warn('Sin conexión:', e);
@@ -1856,12 +1914,13 @@ async function confirmarVentaFiado() {
         // Resultado incierto: la operación SE CONSERVA.
         btn.disabled = false;
         btn.textContent = '✅ Confirmar';
-        mostrarToast('❌ No se pudo confirmar la venta. Reintentá.', 'rojo');
+        mostrarToast(MSG_SIN_RESPUESTA_VENTA, 'rojo');
         return;
     }
 
     if (resp.success === true) {
         localStorage.removeItem(_ventaEnCursoKey());
+        _borrarBorrador('fiado'); // V22
         window._ultimaVenta = { items: [...ventaActual], total, hora, metodo: 'fiado' };
         guardarVentaDia({ items: [...ventaActual], total, hora, metodoPago: 'fiado' });
         if (resp.yaExistia) {
@@ -1993,12 +2052,26 @@ function abrirIngreso() {
     // V14: si quedó un ingreso sin confirmar, se resuelve antes de abrir uno nuevo.
     let pendiente = null;
     try { pendiente = JSON.parse(localStorage.getItem(_ingresoEnCursoKey()) || 'null'); } catch (e) { pendiente = null; }
+    if (pendiente && !pendiente._verificado) {
+        // V22 (B1): antes de preguntar, se consulta al servidor si ya llegó.
+        verificarIngresoPendiente(pendiente).then(function (estado) {
+            if (estado === 'registrado') { mostrarToast('📦 El ingreso pendiente ya estaba registrado: no hace falta reintentarlo', 'verde'); cargarProductos(); abrirIngreso(); return; }
+            pendiente._verificado = estado;
+            _abrirIngresoConPendiente(pendiente);
+        });
+        return;
+    }
+    _abrirIngresoConPendiente(pendiente);
+}
+
+function _abrirIngresoConPendiente(pendiente) {
     if (pendiente) {
         const d = pendiente.datos || {};
+        const nota = pendiente._verificado === 'no_llego' ? '\n\n(El servidor confirma que NO llegó.)' : '';
         const reintentar = confirm(
             'Hay un ingreso sin confirmar:\n+' + d.cantidad + ' ' + d.nombre + ' (' + (pendiente.hora || '?') + ')\n\n' +
             'Aceptar = reintentarlo ahora (si ya se había registrado, no se suma de nuevo).\n' +
-            'Cancelar = descartarlo (si ya se había registrado, quedará registrado).'
+            'Cancelar = descartarlo (si ya se había registrado, quedará registrado).' + nota
         );
         if (reintentar) { guardarIngreso(); return; }
         localStorage.removeItem(_ingresoEnCursoKey());
@@ -2015,7 +2088,48 @@ function abrirIngreso() {
     document.getElementById('ingSugerido').style.display = 'none';
     document.getElementById('ingError').style.display = 'none';
     document.getElementById('ingBtnGuardar').disabled = false;
+    // V22 (A1): recuperar lo que se estaba escribiendo.
+    const b = _leerBorrador('ingreso');
+    const hay = b && ['producto','cantidad','costo','venta','proveedor','categoria'].some(k => b[k] && String(b[k]) !== (k === 'cantidad' ? '1' : ''));
+    if (hay) {
+        document.getElementById('ingProducto').value = b.producto || '';
+        document.getElementById('ingCantidad').value = b.cantidad || '1';
+        document.getElementById('ingCosto').value = b.costo || '';
+        document.getElementById('ingVenta').value = b.venta || '';
+        document.getElementById('ingProveedor').value = b.proveedor || '';
+        document.getElementById('ingCategoria').value = b.categoria || '';
+        calcularSugeridoIngreso();
+    }
+    document.getElementById('ingBorradorAviso').style.display = hay ? 'flex' : 'none';
     document.getElementById('modalIngreso').classList.add('open');
+}
+
+function guardarBorradorIngreso() {
+    _guardarBorrador('ingreso', {
+        producto: document.getElementById('ingProducto').value, cantidad: document.getElementById('ingCantidad').value,
+        costo: document.getElementById('ingCosto').value, venta: document.getElementById('ingVenta').value,
+        proveedor: document.getElementById('ingProveedor').value, categoria: document.getElementById('ingCategoria').value
+    });
+}
+
+function descartarBorradorIngreso() {
+    if (!confirm('¿Borrar lo escrito y empezar de cero?')) return;
+    _borrarBorrador('ingreso');
+    ['ingProducto','ingCosto','ingVenta','ingProveedor','ingCategoria'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ingCantidad').value = '1';
+    document.getElementById('ingSugerido').style.display = 'none';
+    document.getElementById('ingInfo').style.display = 'none';
+    document.getElementById('ingBorradorAviso').style.display = 'none';
+}
+
+// V22 (B1): consulta de solo lectura. Devuelve 'registrado', 'no_llego' o 'sin_respuesta'.
+async function verificarIngresoPendiente(pendiente) {
+    try {
+        const r = await _llamarAPI('verificarOperacion', { token: _tokenActual(), tipo: 'ingreso', id: pendiente.idOperacion });
+        if (r && r.success && r.existe) { localStorage.removeItem(_ingresoEnCursoKey()); return 'registrado'; }
+        if (r && r.success) return 'no_llego';
+    } catch (e) {}
+    return 'sin_respuesta';
 }
 function cerrarIngreso() { document.getElementById('modalIngreso').classList.remove('open'); }
 
@@ -2094,15 +2208,14 @@ async function guardarIngreso() {
             hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
         };
         localStorage.setItem(_ingresoEnCursoKey(), JSON.stringify(pendiente));
+        _borrarBorrador('ingreso'); // V22: desde acá los datos viven en la operación congelada
     }
     const btn = document.getElementById('ingBtnGuardar');
     btn.disabled = true; btn.textContent = '⏳ Guardando...';
     let resp = null;
     try {
         const payload = Object.assign({ token: _tokenActual(), idOperacion: pendiente.idOperacion }, pendiente.datos);
-        const url = API_URL + '?action=ingresarMercaderia&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify(payload));
-        const r = await fetch(url, { redirect: 'follow' });
-        resp = await r.json();
+        resp = await _llamarAPI('ingresarMercaderia', payload);
     } catch(e) { resp = null; }
     btn.disabled = false; btn.textContent = '📦 Guardar ingreso';
 
@@ -2118,8 +2231,8 @@ async function guardarIngreso() {
 
     // Respuesta incierta o error: el ingreso SE CONSERVA para reintentar.
     cerrarIngreso();
-    alert('⚠️ El ingreso no se pudo confirmar' + (resp && resp.error ? ' (' + resp.error + ')' : '') + '.\n\n' +
-          'Quedó guardado: volvé a tocar 📦 Ingresar para reintentarlo.');
+    alert((resp ? '⚠️ El ingreso no se pudo confirmar' + (resp.error ? ' (' + resp.error + ')' : '') : '📡 Sin respuesta del servidor') + '.\n\n' +
+          'Quedó guardado en este equipo y no se va a sumar dos veces: volvé a tocar 📦 Ingresar para reintentarlo.');
 }
 
 // ========== AJUSTE RÁPIDO ==========
@@ -2128,7 +2241,44 @@ function abrirAjuste() {
     document.getElementById('ajusteQ').value = '';
     document.getElementById('ajusteResultados').style.display = 'none';
     document.getElementById('ajustePanel').style.display = 'none';
+    document.getElementById('ajusteError').style.display = 'none';
     document.getElementById('modalAjuste').classList.add('open');
+    // V22 (A1): recuperar un ajuste a medio escribir, solo si el producto sigue siendo el mismo.
+    const b = _leerBorrador('ajuste');
+    if (!b) return;
+    const p = productos.find(pr => pr.id === b.id && pr.name === b.nombreOriginal && (pr.codigo || '') === (b.codigoOriginal || ''));
+    if (!p) { _borrarBorrador('ajuste'); mostrarToast('El producto del ajuste a medio hacer cambió: se descartó lo escrito', 'naranja'); return; }
+    seleccionarAjuste(p.id);
+    document.getElementById('ajustePrecioNuevo').value = b.precio;
+    document.getElementById('ajusteNombreNuevo').value = b.nombreNuevo;
+    document.getElementById('ajusteCodigoNuevo').value = b.codigoNuevo;
+    let txt = '📝 Recuperé lo que estabas escribiendo';
+    if (p.stock === b.stockOriginal) {
+        ajusteValor = b.ajusteValor;
+        document.getElementById('ajusteNuevo').textContent = ajusteValor;
+    } else {
+        txt = '⚠️ Recuperé lo escrito, pero el stock cambió (era ' + b.stockOriginal + ', ahora ' + p.stock + '): revisalo';
+    }
+    document.getElementById('ajusteBorradorTxt').textContent = txt;
+    document.getElementById('ajusteBorradorAviso').style.display = 'flex';
+}
+
+function guardarBorradorAjuste() {
+    if (!ajusteProducto) return;
+    _guardarBorrador('ajuste', {
+        id: ajusteProducto.id, nombreOriginal: ajusteProducto.name, codigoOriginal: ajusteProducto.codigo || '',
+        stockOriginal: ajusteStockOriginal, ajusteValor: ajusteValor,
+        precio: document.getElementById('ajustePrecioNuevo').value,
+        nombreNuevo: document.getElementById('ajusteNombreNuevo').value,
+        codigoNuevo: document.getElementById('ajusteCodigoNuevo').value
+    });
+}
+
+function descartarBorradorAjuste() {
+    if (!confirm('¿Borrar lo escrito y empezar de cero?')) return;
+    _borrarBorrador('ajuste');
+    if (ajusteProducto) seleccionarAjuste(ajusteProducto.id);
+    document.getElementById('ajusteBorradorAviso').style.display = 'none';
 }
 function cerrarAjuste() { document.getElementById('modalAjuste').classList.remove('open'); }
 
@@ -2156,6 +2306,8 @@ function seleccionarAjuste(id) {
     ajusteProducto = p;
     ajusteValor = p.stock;
     ajusteStockOriginal = p.stock; // V18 (P0-2): base congelada
+    document.getElementById('ajusteBorradorAviso').style.display = 'none';
+    document.getElementById('ajusteError').style.display = 'none';
     document.getElementById('ajusteQ').value = p.name;
     document.getElementById('ajusteResultados').style.display = 'none';
     document.getElementById('ajusteNombre').textContent = p.name;
@@ -2170,6 +2322,7 @@ function seleccionarAjuste(id) {
 function cambiarAjuste(delta) {
     ajusteValor = Math.max(0, ajusteValor + delta);
     document.getElementById('ajusteNuevo').textContent = ajusteValor;
+    guardarBorradorAjuste(); // V22
 }
 
 function sincronizarCarritoConProductos() {
@@ -2220,10 +2373,9 @@ async function guardarAjuste() {
         const payload = { token: _tokenActual(), id: ajusteProducto.id, stock: nuevoStock, precio: nuevoPrecio, nombre: nuevoNombre, codigo: nuevoCodigo,
                           codigoOriginal: ajusteProducto.codigo || '', nombreOriginal: ajusteProducto.name,
                           stockOriginal: ajusteStockOriginal };
-        const url = API_URL + '?action=ajustarStock&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify(payload));
-        const r = await fetch(url, { redirect: 'follow' });
-        const resp = await r.json();
+        const resp = await _llamarAPI('ajustarStock', payload);
         if (resp.success) {
+            _borrarBorrador('ajuste'); // V22
             ajusteProducto.stock = (typeof resp.stock === 'number') ? resp.stock : nuevoStock; // V18: verdad del servidor
             ajusteProducto.price = nuevoPrecio;
             ajusteProducto.name = nuevoNombre;
@@ -2237,7 +2389,10 @@ async function guardarAjuste() {
             document.getElementById('ajusteError').style.display = 'block';
             if (resp.definitivo === true) cargarProductos(); // V16: identidad cambió → catálogo fresco
         }
-    } catch(e) { mostrarToast('❌ Sin conexión', 'rojo'); }
+    } catch(e) {
+        // V22 (B8): un ajuste fija el stock (no suma), así que reintentar no duplica.
+        mostrarToast('📡 Sin respuesta del servidor. Lo escrito quedó guardado: reintentá; un ajuste no se aplica dos veces.', 'rojo');
+    }
     btn.disabled = false; btn.textContent = '💾 Guardar cambios';
 }
 
@@ -2367,6 +2522,121 @@ if ('Notification' in window && Notification.permission === 'default') {
 // de verificarSesionCliente() cuando la sesión es válida. Antes corría
 // sin esperar el login y exponía el catálogo (con costos) sin PIN.
 renderVenta();
+
+// ========== V22 (B8): mensaje estándar sin respuesta ==========
+const MSG_SIN_RESPUESTA_VENTA = '📡 Sin respuesta del servidor. La venta quedó guardada en este equipo y no se va a duplicar: tocá Confirmar para reintentar.';
+
+// ========== V22 (B1): pendientes verificados contra el servidor ==========
+// Al entrar, si quedó una venta/fiado enviado sin confirmar, se PREGUNTA al
+// servidor (solo lectura) si llegó. Si llegó, se libera sola; si no llegó,
+// queda como estaba (Confirmar la reintenta con el mismo identificador).
+async function verificarPendientesAlIniciar() {
+    const enCurso = _leerVentaEnCurso();
+    if (enCurso && enCurso.ventaId) {
+        const tipo = enCurso.metodoPago === 'fiado' ? 'fiado' : 'venta';
+        let r = null;
+        try { r = await _llamarAPI('verificarOperacion', { token: _tokenActual(), tipo: tipo, id: enCurso.ventaId }); } catch (e) { r = null; }
+        // Puede haberse resuelto mientras tanto (el cajero tocó Confirmar).
+        const sigue = _leerVentaEnCurso();
+        if (!sigue || sigue.ventaId !== enCurso.ventaId) return;
+        if (r && r.success && r.existe) {
+            const carrito = JSON.parse(localStorage.getItem(CARRITO_KEY) || '[]');
+            const items = tipo === 'venta'
+                ? (r.procesados || []).map(p => ({ name: String(p.name || ''), qty: Number(p.qty) || 0, price: Number(p.precio) || 0 }))
+                : carrito.map(i => ({ name: i.name, qty: i.qty, price: i.price }));
+            const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+            const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+            guardarVentaDia({ items, total, hora, metodoPago: enCurso.metodoPago });
+            localStorage.removeItem(_ventaEnCursoKey());
+            if (tipo === 'fiado') _borrarBorrador('fiado');
+            ventaActual = [];
+            localStorage.removeItem(CARRITO_KEY);
+            renderVenta();
+            cargarProductos();
+            mostrarToast('✅ La venta que había quedado sin confirmar ya estaba registrada ($' + total.toLocaleString('es-AR') + '). Carrito liberado.', 'verde');
+        } else if (r && r.success && r.enProceso) {
+            mostrarToast('⚠️ Hay un fiado a medio registrar: tocá Cobrar → Confirmar para completarlo (no se duplica).', 'naranja');
+        } else if (r && r.success) {
+            mostrarToast('⚠️ Hay una venta enviada que NO llegó al servidor: Cobrar → Confirmar la reintenta, o Limpiar la descarta.', 'naranja');
+        }
+    }
+    let ing = null;
+    try { ing = JSON.parse(localStorage.getItem(_ingresoEnCursoKey()) || 'null'); } catch (e) { ing = null; }
+    if (ing && ing.idOperacion) {
+        const estado = await verificarIngresoPendiente(ing);
+        if (estado === 'registrado') { mostrarToast('📦 El ingreso que había quedado pendiente ya estaba registrado.', 'verde'); cargarProductos(); }
+    }
+    // V22 (A1): si quedó un formulario a medio escribir, se vuelve a abrir solo.
+    const visible = id => { const b = document.getElementById(id); return b && b.style.display !== 'none'; };
+    if (!document.querySelector('.modal-bg.open')) {
+        if (_leerBorrador('ingreso') && visible('btnIngreso') && !localStorage.getItem(_ingresoEnCursoKey())) abrirIngreso();
+        else if (_leerBorrador('ajuste') && visible('btnAjuste')) abrirAjuste();
+    }
+}
+
+// ========== V22 (A1): guardar borradores mientras se escribe ==========
+document.getElementById('modalIngreso').addEventListener('input', guardarBorradorIngreso);
+document.getElementById('modalAjuste').addEventListener('input', function (ev) { if (ev.target.id !== 'ajusteQ') guardarBorradorAjuste(); });
+['fiadoCliente', 'fiadoTelefono'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', function () {
+        if (_leerVentaEnCurso()) return; // un fiado en curso ya tiene sus datos congelados
+        _guardarBorrador('fiado', { cliente: document.getElementById('fiadoCliente').value, telefono: document.getElementById('fiadoTelefono').value });
+    });
+});
+
+// ========== V22 (A3): sin corrector que trabe los cuadros de texto ==========
+document.querySelectorAll('.modal-sheet input:not([type=number]):not([type=tel]), .modal-sheet textarea').forEach(function (el) {
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocomplete', 'off');
+});
+// Ventanas a la altura de la parte visible (el teclado no las tapa).
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const ajustar = function () {
+        document.documentElement.style.setProperty('--vv-alto', vv.height + 'px');
+        document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    };
+    vv.addEventListener('resize', ajustar);
+    vv.addEventListener('scroll', ajustar);
+    ajustar();
+})();
+document.addEventListener('focusin', function (ev) {
+    const el = ev.target;
+    if (!el.closest || !el.closest('.modal-sheet') || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    setTimeout(function () { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 300);
+});
+
+// ========== V22 (B6): el botón Atrás del celular cierra la ventana abierta ==========
+const CIERRES_MODAL = {
+    modalConfirm: function () { cerrarConfirm(); },
+    modalIngreso: function () { cerrarIngreso(); },
+    modalAjuste:  function () { cerrarAjuste(); },
+    modalResumen: function () { cerrarResumen(); },
+    modalStats:   function () { cerrarEstadisticas(); }
+};
+let _modalEnHistorial = null, _ignorarPop = false;
+new MutationObserver(function () {
+    const abierto = document.querySelector('.modal-bg.open');
+    if (abierto && !_modalEnHistorial) {
+        history.pushState({ vaoModal: abierto.id }, '');
+        _modalEnHistorial = abierto.id;
+    } else if (!abierto && _modalEnHistorial) {
+        _modalEnHistorial = null;
+        _ignorarPop = true;
+        history.back();
+    }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+window.addEventListener('popstate', function () {
+    if (_ignorarPop) { _ignorarPop = false; return; }
+    // Se cierra la ventana de ARRIBA (la última abierta en la página).
+    const abierto = [...document.querySelectorAll('.modal-bg.open')].pop();
+    if (abierto) {
+        _modalEnHistorial = null;
+        (CIERRES_MODAL[abierto.id] || function () { abierto.classList.remove('open'); })();
+    }
+});
 </script>
 <!-- ===== MODAL ESTADÍSTICAS ===== -->
 <div class="modal-bg" id="modalStats" onclick="if(event.target===this)cerrarEstadisticas()">

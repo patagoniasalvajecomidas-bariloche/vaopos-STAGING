@@ -185,6 +185,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--t
             <button class="modal-cerrar" onclick="cerrarModalPago()">✕</button>
         </div>
         <div id="pagoInfo" style="font-size:0.85rem;color:var(--gris);margin-bottom:14px;"></div>
+        <div id="pagoPendienteAviso" style="display:none;background:#FFF8E1;border:1px solid #FFE082;color:#795548;border-radius:10px;padding:8px 10px;font-size:0.8rem;margin-bottom:12px;">
+            📡 Este pago se envió y no se confirmó. <b>Confirmar</b> lo reintenta con el mismo número: no se cobra dos veces.
+            <button onclick="descartarPagoPendiente()" style="border:none;background:none;color:#C62828;font-weight:800;cursor:pointer;padding:4px 0 0;display:block;">🗑 Descartarlo</button>
+        </div>
         <div class="form-grupo">
             <label class="form-label">Monto a pagar</label>
             <input type="number" class="form-input" id="pagoMonto" min="0">
@@ -218,7 +222,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--t
 </div>
 
 <script>
-const APP_VERSION = 1;
+const APP_VERSION = 2;
 const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
 
 // Mismo esquema seguro que ya usan pos.html y reportes.html — sin sesión
@@ -265,6 +269,7 @@ async function init() {
         return;
     }
     await cargarListaClientes();
+    verificarPagoPendiente(); // V2
 }
 
 async function cargarListaClientes() {
@@ -405,6 +410,18 @@ function abrirModalPago(idFiado) {
     document.getElementById('pagoMonto').value = fiadoSeleccionado.totalPendiente;
     document.getElementById('pagoError').style.display = 'none';
     seleccionarMetodoPago('efectivo');
+    // V2: un pago enviado sin confirmar queda FIJO (mismo monto, método y número).
+    const pend = _leerPagoPendiente();
+    const esEste = !!(pend && pend.idFiado === idFiado);
+    if (esEste) {
+        document.getElementById('pagoMonto').value = pend.monto;
+        seleccionarMetodoPago(pend.metodo);
+    } else {
+        const b = _leerBorradorPago();
+        if (b && b.idFiado === idFiado) { document.getElementById('pagoMonto').value = b.monto; seleccionarMetodoPago(b.metodo || 'efectivo'); }
+    }
+    document.getElementById('pagoMonto').readOnly = esEste;
+    document.getElementById('pagoPendienteAviso').style.display = esEste ? 'block' : 'none';
     document.getElementById('btnConfirmarPago').disabled = false;
     document.getElementById('btnConfirmarPago').textContent = '✅ Confirmar pago';
     document.getElementById('modalPago').classList.add('open');
@@ -412,7 +429,14 @@ function abrirModalPago(idFiado) {
 function cerrarModalPago() { document.getElementById('modalPago').classList.remove('open'); }
 
 function seleccionarMetodoPago(m) {
+    // Solo cuando la ventana ya está abierta (al abrirla se arma sola).
+    const abierta = document.getElementById('modalPago').classList.contains('open');
+    const pend = _leerPagoPendiente();
+    if (abierta && pend && fiadoSeleccionado && pend.idFiado === fiadoSeleccionado.idFiado && m !== pend.metodo) {
+        toast('Pago enviado sin confirmar: no se puede cambiar el método', 'rojo'); return;
+    }
     metodoPagoActual = m;
+    if (abierta && fiadoSeleccionado && !pend) _guardarBorradorPago();
     ['efectivo', 'transferencia', 'debito', 'qr_posnet'].forEach(k => {
         const btn = document.getElementById('metodoPago-' + k);
         if (btn) btn.className = 'btn-metodo' + (k === m ? ' activo' : '');
@@ -421,13 +445,29 @@ function seleccionarMetodoPago(m) {
 
 async function confirmarPago() {
     if (!fiadoSeleccionado) return;
-    const monto = parseFloat(document.getElementById('pagoMonto').value) || 0;
     const errDiv = document.getElementById('pagoError');
     errDiv.style.display = 'none';
-    if (monto <= 0) { errDiv.textContent = '❌ Ingresá un monto válido'; errDiv.style.display = 'block'; return; }
-
-    const esAbono = monto < fiadoSeleccionado.totalPendiente - 0.5;
-    const idOperacion = 'FVAO-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    // V2 (P0): el número de operación se crea UNA vez y se guarda ANTES de
+    // enviar. Un reintento después de un corte usa el mismo número y los
+    // mismos datos, así el servidor responde "ya existía" y no cobra dos veces.
+    let pend = _leerPagoPendiente();
+    if (pend && pend.idFiado !== fiadoSeleccionado.idFiado) {
+        errDiv.textContent = '⚠️ Hay otro pago sin confirmar (' + (pend.cliente || '') + '). Resolvelo primero.';
+        errDiv.style.display = 'block'; return;
+    }
+    if (!pend) {
+        const montoEscrito = parseFloat(document.getElementById('pagoMonto').value) || 0;
+        if (montoEscrito <= 0) { errDiv.textContent = '❌ Ingresá un monto válido'; errDiv.style.display = 'block'; return; }
+        pend = {
+            idOperacion: 'FVAO-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+            idFiado: fiadoSeleccionado.idFiado, monto: montoEscrito,
+            esAbono: montoEscrito < fiadoSeleccionado.totalPendiente - 0.5,
+            metodo: metodoPagoActual, cliente: clienteActual ? clienteActual.cliente : ''
+        };
+        _guardarPagoPendiente(pend);
+    }
+    const monto = pend.monto, esAbono = pend.esAbono, idOperacion = pend.idOperacion;
+    metodoPagoActual = pend.metodo;
     const btn = document.getElementById('btnConfirmarPago');
     btn.disabled = true; btn.textContent = '⏳ Procesando...';
 
@@ -439,18 +479,23 @@ async function confirmarPago() {
             resp = await _api('cobrarFiado', { idFiado: fiadoSeleccionado.idFiado, metodoPago: metodoPagoActual, idOperacion });
         }
         if (resp.success) {
+            _borrarPagoPendiente(); _borrarBorradorPago();
             armarComprobante(monto, esAbono);
             cerrarModalPago();
-            toast('✅ Pago registrado', 'verde');
+            toast(resp.yaExistia ? '✅ Ese pago ya estaba registrado (no se cobró dos veces)' : '✅ Pago registrado', 'verde');
             await abrirClienteRefresh();
             abrirComprobante();
         } else {
-            errDiv.textContent = '❌ ' + (resp.error || resp.mensaje || 'Error al registrar el pago');
+            if (resp.definitivo) { _borrarPagoPendiente(); await abrirClienteRefresh(); } // p. ej. ya estaba saldado: no se escribió nada
+            errDiv.textContent = '❌ ' + (resp.error || resp.mensaje || 'Error al registrar el pago') +
+                (resp.definitivo ? '' : ' — el pago quedó guardado: Confirmar lo reintenta sin duplicar.');
             errDiv.style.display = 'block';
         }
     } catch (e) {
-        errDiv.textContent = '❌ Sin conexión';
+        errDiv.textContent = '📡 Sin respuesta del servidor. El pago quedó guardado en este equipo y no se va a cobrar dos veces: tocá Confirmar para reintentar.';
         errDiv.style.display = 'block';
+        document.getElementById('pagoMonto').readOnly = true;
+        document.getElementById('pagoPendienteAviso').style.display = 'block';
     }
     btn.disabled = false; btn.textContent = '✅ Confirmar pago';
 }
@@ -510,6 +555,63 @@ function copiarComprobante() {
 }
 
 init();
+
+// ========== V2: pago de fiado enviado sin confirmar ==========
+function _pagoKey() { return 'vao_pago_fiado_en_curso_' + PREFIJO; }
+function _leerPagoPendiente() { try { return JSON.parse(localStorage.getItem(_pagoKey()) || 'null'); } catch (e) { return null; } }
+function _guardarPagoPendiente(p) { try { localStorage.setItem(_pagoKey(), JSON.stringify(Object.assign({ hora: Date.now() }, p))); } catch (e) {} }
+function _borrarPagoPendiente() { try { localStorage.removeItem(_pagoKey()); } catch (e) {} }
+// Borrador del monto/método mientras se escribe (sin datos sensibles).
+function _borradorPagoKey() { return 'vao_borrador_pago_fiado_' + PREFIJO; }
+function _leerBorradorPago() { try { return JSON.parse(localStorage.getItem(_borradorPagoKey()) || 'null'); } catch (e) { return null; } }
+function _guardarBorradorPago() {
+    if (!fiadoSeleccionado) return;
+    try { localStorage.setItem(_borradorPagoKey(), JSON.stringify({ idFiado: fiadoSeleccionado.idFiado, monto: document.getElementById('pagoMonto').value, metodo: metodoPagoActual })); } catch (e) {}
+}
+function _borrarBorradorPago() { try { localStorage.removeItem(_borradorPagoKey()); } catch (e) {} }
+document.getElementById('pagoMonto').addEventListener('input', function () { if (!_leerPagoPendiente()) _guardarBorradorPago(); });
+
+function descartarPagoPendiente() {
+    const p = _leerPagoPendiente(); if (!p) return;
+    if (!confirm('¿Descartar el pago sin confirmar de ' + fmt(p.monto) + '?\n\nSi ya había llegado al servidor, quedará registrado.')) return;
+    _borrarPagoPendiente();
+    document.getElementById('pagoMonto').readOnly = false;
+    document.getElementById('pagoPendienteAviso').style.display = 'none';
+}
+
+// Al entrar: se pregunta al servidor (solo lectura) si el pago pendiente llegó.
+async function verificarPagoPendiente() {
+    const p = _leerPagoPendiente(); if (!p) return;
+    try {
+        const r = await _api('verificarOperacion', { tipo: 'pagoFiado', id: p.idOperacion, idFiado: p.idFiado });
+        if (r && r.success && r.existe) {
+            _borrarPagoPendiente(); _borrarBorradorPago();
+            toast('✅ El pago que había quedado sin confirmar (' + fmt(p.monto) + ') ya estaba registrado', 'verde');
+            await cargarListaClientes();
+        } else if (r && r.success) {
+            toast('⚠️ Hay un pago sin confirmar de ' + (p.cliente || '') + ' (' + fmt(p.monto) + '): abrí su cuenta y tocá Confirmar', 'rojo');
+        }
+    } catch (e) {}
+}
+
+// ========== V2: el botón Atrás del celular cierra la ventana o vuelve a la lista ==========
+let _nivelHistorial = 0, _ignorarPopF = false;
+function _estadoPantalla() {
+    if (document.querySelector('.modal-bg.open')) return 2;
+    return document.getElementById('btnVolverDetalle').style.display === '' ? 1 : 0;
+}
+new MutationObserver(function () {
+    const nivel = _estadoPantalla();
+    while (_nivelHistorial < nivel) { history.pushState({ vaoNivel: _nivelHistorial + 1 }, ''); _nivelHistorial++; }
+    if (_nivelHistorial > nivel) { const n = _nivelHistorial - nivel; _nivelHistorial = nivel; _ignorarPopF = true; history.go(-n); }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+window.addEventListener('popstate', function () {
+    if (_ignorarPopF) { _ignorarPopF = false; return; }
+    _nivelHistorial = Math.max(0, _nivelHistorial - 1);
+    const abierto = document.querySelector('.modal-bg.open');
+    if (abierto) { abierto.id === 'modalComprobante' ? cerrarComprobante() : cerrarModalPago(); return; }
+    if (document.getElementById('btnVolverDetalle').style.display === '') volverALista();
+});
 </script>
 
 </body>

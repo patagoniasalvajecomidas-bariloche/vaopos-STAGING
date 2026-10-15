@@ -332,7 +332,10 @@ body {
 .modal-overlay {
     display: none;
     position: fixed;
-    inset: 0;
+    /* V7: ocupa solo la parte visible (el teclado del celular no tapa la ventana) */
+    left: 0; right: 0;
+    top: var(--vv-top, 0px);
+    height: var(--vv-alto, 100%);
     background: rgba(0,0,0,0.5);
     z-index: 200;
     align-items: center;
@@ -348,7 +351,7 @@ body {
     padding: 28px 24px;
     width: 100%;
     max-width: 480px;
-    max-height: 90vh;
+    max-height: calc(var(--vv-alto, 100vh) * 0.92);
     overflow-y: auto;
     box-shadow: 0 24px 60px rgba(0,0,0,0.3);
 }
@@ -411,6 +414,8 @@ body {
 .plan-mods label, .chk { display:flex; align-items:center; gap:6px; font-size:0.84rem; }
 .ayuda { font-size:0.75rem; color:var(--gris); margin-top:4px; line-height:1.35; }
 .botones-seccion { display:flex; gap:8px; flex-wrap:wrap; }
+.aviso-borrador { display:flex; justify-content:space-between; align-items:center; gap:8px; background:#FFF8E1; border:1px solid #FFE082; color:#795548; border-radius:10px; padding:8px 10px; font-size:0.78rem; margin:-6px 0 14px; }
+.aviso-borrador button { border:none; background:none; color:#C62828; font-weight:800; cursor:pointer; font-size:0.78rem; white-space:nowrap; }
 @media (max-width: 600px) { .plan-mods { grid-template-columns:1fr; } }
 .prefijo-err { color: var(--rojo); }
 
@@ -734,6 +739,7 @@ body {
 <div class="modal-overlay" id="modalAlta">
     <div class="modal">
         <div class="modal-titulo">➕ Nuevo cliente</div>
+        <div class="aviso-borrador" id="altaBorradorAviso" style="display:none;"><span>📝 Recuperé lo que estabas cargando</span><button onclick="empezarDeCeroAlta()">🗑 Empezar de cero</button></div>
 
         <div class="form-fila">
             <div class="form-grupo">
@@ -771,7 +777,7 @@ body {
 
         <div class="form-grupo">
             <label class="form-label">Correo</label>
-            <input type="email" class="form-input" id="altaCorreo" placeholder="maria@correo.com">
+            <input type="text" inputmode="email" autocapitalize="off" class="form-input" id="altaCorreo" placeholder="maria@correo.com" oninput="_aMinusculas(this)">
         </div>
 
         <div class="form-fila">
@@ -787,7 +793,7 @@ body {
         <div class="ayuda" id="altaPlanAyuda"></div>
 
         <div class="modal-footer">
-            <button class="btn-cancelar" onclick="cerrarModalAlta()">Cancelar</button>
+            <button class="btn-cancelar" onclick="cancelarAlta()">Cancelar</button>
             <button class="btn-primario btn-verde" onclick="crearCliente()" id="btnCrear" style="font-size:0.9rem;padding:13px;">
                 Crear cliente
             </button>
@@ -857,7 +863,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -893,6 +899,35 @@ function sesionGuardada() {
     localStorage.removeItem(LS_TOKEN_EXP);
     return false;
 }
+
+// V7 (B4): el servidor renueva la sesión admin 10 minutos en cada acción
+// válida; el navegador ahora hace lo mismo (antes te sacaba a los 10 minutos
+// de haber entrado aunque estuvieras trabajando).
+const MINUTOS_SESION_ADMIN = 10;
+function _renovarSesionLocal() {
+    if (!tokenAdmin) return;
+    localStorage.setItem(LS_TOKEN_EXP, String(Date.now() + MINUTOS_SESION_ADMIN * 60 * 1000));
+}
+function _sesionVencida() {
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_TOKEN_EXP);
+    tokenAdmin = '';
+    document.querySelectorAll('.modal-overlay.visible').forEach(m => m.classList.remove('visible'));
+    document.getElementById('panelAdmin').style.display = 'none';
+    document.getElementById('panelLogin').style.display  = 'flex';
+    mostrarError('La sesión venció por inactividad. Volvé a entrar: lo que estabas cargando quedó guardado.');
+}
+const _fetchOriginal = window.fetch.bind(window);
+window.fetch = async function (url, opciones) {
+    const r = await _fetchOriginal(url, opciones);
+    if (String(url).indexOf(API_URL) === 0 && tokenAdmin) {
+        r.clone().json().then(j => {
+            if (j && typeof j.error === 'string' && j.error.indexOf('Sesión admin inválida') === 0) _sesionVencida();
+            else if (j) _renovarSesionLocal();
+        }).catch(() => {});
+    }
+    return r;
+};
 
 function guardarSesion(token, expira) {
     tokenAdmin = token;
@@ -955,7 +990,7 @@ function mostrarAdmin() {
     document.getElementById('panelLogin').style.display = 'none';
     document.getElementById('panelAdmin').style.display = 'block';
     cargarClientes();
-    cargarPlanes();
+    cargarPlanes().then(reabrirAltaPendiente);
 }
 
 async function cargarClientes() {
@@ -1107,6 +1142,30 @@ function accionBarraResetPin() {
 }
 
 // ── ALTA CLIENTE ──────────────────────────────────────────────────
+const CAMPOS_ALTA = ['altaPrefijo','altaNombre','altaContacto','altaTelefono','altaCorreo','altaAlias','altaDias'];
+const BORRADOR_ALTA = 'vao_borrador_admin_alta'; // V7 (A1). Nunca guarda claves, tokens ni PIN.
+
+function _aMinusculas(el) {
+    // V7 (A2): minúsculas sin desordenar lo que se escribe (el campo ya no es
+    // type=email, que en Chrome no deja leer la posición del cursor).
+    const v = el.value, l = v.toLowerCase();
+    if (v === l) return;
+    const a = el.selectionStart, b = el.selectionEnd;
+    el.value = l;
+    try { el.setSelectionRange(a, b); } catch (e) {}
+}
+
+function _leerBorradorAlta() { try { return JSON.parse(localStorage.getItem(BORRADOR_ALTA) || 'null'); } catch (e) { return null; } }
+function _borrarBorradorAlta() { try { localStorage.removeItem(BORRADOR_ALTA); } catch (e) {} }
+function guardarBorradorAlta() {
+    const d = { plan: document.getElementById('altaPlan').value, _t: Date.now() };
+    CAMPOS_ALTA.forEach(id => d[id] = document.getElementById(id).value);
+    try { localStorage.setItem(BORRADOR_ALTA, JSON.stringify(d)); } catch (e) {}
+}
+function _altaTieneDatos() {
+    return CAMPOS_ALTA.some(id => id !== 'altaDias' && document.getElementById(id).value.trim() !== '');
+}
+
 function abrirModalAlta() {
     if (!planesInfo.existe) {
         toast('Primero creá los planes (botón 🧩 Planes)', 'rojo');
@@ -1114,12 +1173,43 @@ function abrirModalAlta() {
         return;
     }
     llenarSelectPlanes();
+    const b = _leerBorradorAlta();
+    const recuperado = !!(b && CAMPOS_ALTA.some(id => id !== 'altaDias' && String(b[id] || '').trim()));
+    if (recuperado && !_altaTieneDatos()) {
+        CAMPOS_ALTA.forEach(id => document.getElementById(id).value = b[id] || '');
+        if (b.plan && [...document.getElementById('altaPlan').options].some(o => o.value === b.plan)) document.getElementById('altaPlan').value = b.plan;
+        const p = (planesInfo.planes || []).find(x => x.codigo === document.getElementById('altaPlan').value);
+        if (p) { alCambiarPlanAlta(); document.getElementById('altaDias').value = b.altaDias || ''; }
+        validarPrefijo();
+    }
+    document.getElementById('altaBorradorAviso').style.display = recuperado ? 'flex' : 'none';
     document.getElementById('modalAlta').classList.add('visible');
     document.getElementById('altaPrefijo').focus();
 }
 
+// Ocultar sin borrar (botón Atrás, sesión vencida): lo escrito se conserva.
+function ocultarModalAlta() {
+    document.getElementById('modalAlta').classList.remove('visible');
+}
+
+function cancelarAlta() {
+    if (_altaTieneDatos() && !confirm('¿Descartar los datos de este cliente?\n\nSe borra lo que escribiste.')) return;
+    _borrarBorradorAlta();
+    cerrarModalAlta();
+}
+
+function empezarDeCeroAlta() {
+    if (!confirm('¿Borrar lo escrito y empezar de cero?')) return;
+    _borrarBorradorAlta();
+    CAMPOS_ALTA.forEach(id => { document.getElementById(id).value = ''; document.getElementById(id).classList.remove('error'); });
+    document.getElementById('prefijoCheck').textContent = '';
+    document.getElementById('altaBorradorAviso').style.display = 'none';
+    alCambiarPlanAlta();
+}
+
 function cerrarModalAlta() {
     document.getElementById('modalAlta').classList.remove('visible');
+    document.getElementById('altaBorradorAviso').style.display = 'none';
     ['altaPrefijo','altaNombre','altaContacto','altaTelefono',
      'altaCorreo','altaAlias','altaDias'].forEach(id => {
         document.getElementById(id).value = '';
@@ -1197,6 +1287,7 @@ async function crearCliente() {
             return;
         }
 
+        _borrarBorradorAlta(); // V7: solo después de la confirmación del servidor
         cerrarModalAlta();
         await cargarClientes();
 
@@ -1207,7 +1298,15 @@ async function crearCliente() {
               '\n\nPIN de acceso: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
 
     } catch(e) {
-        toast('Error de conexión', 'rojo');
+        // V7 (B5): sin respuesta — NO se borra nada. Se mira la lista para saber si llegó.
+        await cargarClientes();
+        if (clientesCargados.some(c => c.prefijo === prefijo)) {
+            _borrarBorradorAlta();
+            cerrarModalAlta();
+            alert('📡 El servidor no respondió, pero el cliente ' + prefijo + ' SÍ quedó creado.\n\nEl PIN no llegó a mostrarse: usá 🔑 Reset PIN en la lista para generar uno nuevo.');
+        } else {
+            alert('📡 Sin respuesta del servidor. Lo que escribiste quedó guardado.\n\n' + prefijo + ' no aparece en la lista: tocá Crear de nuevo (no se duplica, el prefijo se controla).\nSi más tarde aparece en la lista, usá 🔑 Reset PIN.');
+        }
     } finally {
         btn.innerHTML = 'Crear cliente';
         btn.disabled  = false;
@@ -1518,6 +1617,68 @@ if (sesionGuardada()) {
     mostrarAdmin();
 } else {
     document.getElementById('panelLogin').style.display = 'flex';
+}
+
+// ── V7: borrador del alta mientras se escribe ─────────────────────
+document.getElementById('modalAlta').addEventListener('input', guardarBorradorAlta);
+document.getElementById('modalAlta').addEventListener('change', guardarBorradorAlta);
+
+// ── V7 (A3): sin corrector en los cuadros de texto de las ventanas ─
+document.querySelectorAll('.modal input[type=text], .modal input:not([type]), .modal textarea').forEach(function (el) {
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocomplete', 'off');
+});
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const ajustar = function () {
+        document.documentElement.style.setProperty('--vv-alto', vv.height + 'px');
+        document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    };
+    vv.addEventListener('resize', ajustar);
+    vv.addEventListener('scroll', ajustar);
+    ajustar();
+})();
+document.addEventListener('focusin', function (ev) {
+    const el = ev.target;
+    if (!el.closest || !el.closest('.modal') || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    setTimeout(function () { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 300);
+});
+
+// ── V7 (B6): el botón Atrás del celular cierra la ventana abierta ─
+const CIERRES_MODAL_ADMIN = {
+    modalAlta:        function () { ocultarModalAlta(); },   // conserva lo escrito
+    modalVigencia:    function () { cerrarModalVigencia(); },
+    modalPlanCliente: function () { cerrarModalPlanCliente(); },
+    modalPlanes:      function () { cerrarModalPlanes(); }
+};
+let _modalAdminEnHistorial = null, _ignorarPopAdmin = false;
+new MutationObserver(function () {
+    const abierto = document.querySelector('.modal-overlay.visible');
+    if (abierto && !_modalAdminEnHistorial) {
+        history.pushState({ vaoModal: abierto.id }, '');
+        _modalAdminEnHistorial = abierto.id;
+    } else if (!abierto && _modalAdminEnHistorial) {
+        _modalAdminEnHistorial = null;
+        _ignorarPopAdmin = true;
+        history.back();
+    }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+window.addEventListener('popstate', function () {
+    if (_ignorarPopAdmin) { _ignorarPopAdmin = false; return; }
+    // Se cierra la ventana de ARRIBA (la última abierta en la página).
+    const abierto = [...document.querySelectorAll('.modal-overlay.visible')].pop();
+    if (abierto) {
+        _modalAdminEnHistorial = null;
+        (CIERRES_MODAL_ADMIN[abierto.id] || function () { abierto.classList.remove('visible'); })();
+    }
+});
+
+// ── V7 (A1): si quedó un alta a medio cargar, se vuelve a abrir sola ─
+async function reabrirAltaPendiente() {
+    if (!tokenAdmin || !_leerBorradorAlta()) return;
+    if (planesInfo.existe && !document.querySelector('.modal-overlay.visible')) abrirModalAlta();
 }
 </script>
 </body>
