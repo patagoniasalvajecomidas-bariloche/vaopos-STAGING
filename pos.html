@@ -327,6 +327,7 @@ body {
     opacity: 0;
     transition: opacity 0.3s;
     white-space: normal; /* V19 (R5): textos largos en varias líneas */
+    width: max-content;  /* V21: con left:50% el navegador lo achicaba a media pantalla */
     max-width: calc(100vw - 32px);
     text-align: center;
     pointer-events: none;
@@ -891,15 +892,17 @@ body {
 
 <script>
 // ========== GUARD: prefijo requerido en la URL ==========
-if (!new URLSearchParams(window.location.search).has('p')) {
+// V21: también se rechaza ?p= vacío o con caracteres raros. Antes ?p= vacío
+// pasaba el guard y el POS caía en "NE", un negocio real.
+const PREFIJO = (new URLSearchParams(window.location.search).get('p') || '').trim().toUpperCase();
+if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
     window.location.href = 'index.html';
-    throw new Error('Sin prefijo en la URL — redirigiendo a index.html');
+    throw new Error('Sin prefijo válido en la URL — redirigiendo a index.html');
 }
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 20;
-const PREFIJO  = new URLSearchParams(window.location.search).get("p")?.toUpperCase() || "NE";
+const APP_VERSION = 21;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
 
@@ -978,6 +981,7 @@ async function verificarSesionCliente() {
             CONFIG_ACTUAL = d.config;
             generarToolbarSegunPacks(CONFIG_ACTUAL);
             ocultarOverlayPin();
+            cargarDatosVendedor(); // V21: nombre/alias del negocio, ya con sesión
             // Paso 11: el catálogo (con costos y proveedores) recién se
             // pide una vez que la sesión quedó confirmada como válida —
             // antes se pedía en el INIT del script, sin esperar el login.
@@ -989,6 +993,7 @@ async function verificarSesionCliente() {
     } catch (e) {
         // sin conexión: no bloqueamos al cliente por falta de red si ya tenía token
         ocultarOverlayPin();
+        cargarDatosVendedor(); // V21: si la red vuelve, igual completa nombre y alias
     }
 }
 
@@ -1041,11 +1046,14 @@ document.getElementById('headerSub').textContent = 'VAO Sistemas · v' + APP_VER
 const [_c1, _c2] = colorPorPrefijo(PREFIJO);
 document.getElementById('headerAvatar').style.background = `linear-gradient(135deg,${_c1},${_c2})`;
 
-// Cargar datos reales del vendedor + token MP en paralelo
-Promise.all([
-    fetch(API_URL + '?action=getVendedores', { redirect:'follow' }).then(r => r.json())
-]).then(([data]) => {
-    const v = (data.vendedores || []).find(v => v.prefijo === PREFIJO);
+// V21: los datos del negocio se piden CON la sesión y solo los del propio
+// prefijo (backend v024 ya no entrega la lista de todos los negocios).
+// Se llama desde verificarSesionCliente() cuando la sesión quedó válida.
+function cargarDatosVendedor() {
+    const url = API_URL + '?action=getVendedores&prefijo=' + PREFIJO +
+        '&data=' + encodeURIComponent(JSON.stringify({ token: _tokenActual() }));
+    return fetch(url, { redirect:'follow' }).then(r => r.json()).then(data => {
+    const v = ((data && data.vendedores) || []).find(v => v.prefijo === PREFIJO);
     if (v) {
         vendedorActual = v;
         document.getElementById('headerTitulo').textContent = v.nombre;
@@ -1057,7 +1065,8 @@ Promise.all([
             new QRCode(qrCanv, { text: v.aliasPago, width:180, height:180, colorDark:'#1E88E5', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
         }
     }
-}).catch(() => {});
+    }).catch(() => {});
+}
 
 
 // ========== ESTADO ==========

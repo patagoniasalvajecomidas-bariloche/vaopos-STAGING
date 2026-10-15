@@ -158,7 +158,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--blanco); color:var(--t
 </div>
 
 <script>
-const APP_VERSION = 4;
+const APP_VERSION = 5;
 const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
 // Paso 11: reportes.html no tenía prefijo ni token propios — por eso
 // getVentas se llamaba sin prefijo y siempre traía las ventas de "NE"
@@ -318,7 +318,7 @@ function renderApp() {
         '<button class="chip-metodo'+(metodosActivos.has('TODOS')?' activo':'')+'" onclick="toggleMetodo(\'TODOS\')">📋 Todos</button>' +
         metodos.map(m => {
             const ic = m.includes('EFECTIVO')?'💵':m.includes('TRANSF')?'📱':m.includes('QR')?'📲':'💳';
-            return '<button class="chip-metodo'+(metodosActivos.has(m)?' activo':'')+'" onclick="toggleMetodo(\''+m+'\')">'+ic+' '+m+'</button>';
+            return '<button class="chip-metodo'+(metodosActivos.has(m)?' activo':'')+'" data-m="'+_esc(m)+'" onclick="toggleMetodo(this.dataset.m)">'+ic+' '+_esc(m)+'</button>'; // V5: nombre escapado
         }).join('') + '</div>';
 
     // Resumen
@@ -328,7 +328,7 @@ function renderApp() {
     // Métodos breakdown
     const metodosRows = Object.entries(totSel.metodos).sort((a,b)=>b[1]-a[1]).map(([m,t]) => {
         const pct = totSel.total>0 ? Math.round(t/totSel.total*100) : 0;
-        return '<div class="metodo-row"><span class="metodo-nombre">'+m+'</span><span><strong class="metodo-monto">'+fmt(t)+'</strong><span class="metodo-pct">'+pct+'%</span></span></div>';
+        return '<div class="metodo-row"><span class="metodo-nombre">'+_esc(m)+'</span><span><strong class="metodo-monto">'+fmt(t)+'</strong><span class="metodo-pct">'+pct+'%</span></span></div>';
     }).join('');
 
     // Top productos
