@@ -396,6 +396,22 @@ body {
 }
 
 .prefijo-ok  { color: var(--verde); }
+.prefijo-neutro { color: var(--gris); }
+
+/* V6: planes y módulos */
+.badge-plan { background:#EDE7F6; color:#4527A0; font-size:0.66rem; padding:2px 7px; border-radius:8px; font-weight:800; margin-left:6px; vertical-align:middle; white-space:nowrap; }
+.aviso-revisar { display:block; font-size:0.7rem; color:#E65100; font-weight:700; margin-top:2px; white-space:normal; }
+.modulo-fila { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--borde); font-size:0.86rem; }
+.modulo-fila:last-child { border-bottom:none; }
+.modulo-estado { display:block; font-size:0.72rem; color:var(--gris); }
+.modulo-fila input[type=checkbox], .plan-mods input[type=checkbox], .chk input { width:20px; height:20px; accent-color:var(--azul); }
+.plan-card { border:2px solid var(--borde); border-radius:14px; padding:14px; margin-bottom:12px; }
+.plan-card h4 { margin:0 0 10px; font-size:0.95rem; color:var(--azul-dark); }
+.plan-mods { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin:8px 0 12px; font-size:0.82rem; }
+.plan-mods label, .chk { display:flex; align-items:center; gap:6px; font-size:0.84rem; }
+.ayuda { font-size:0.75rem; color:var(--gris); margin-top:4px; line-height:1.35; }
+.botones-seccion { display:flex; gap:8px; flex-wrap:wrap; }
+@media (max-width: 600px) { .plan-mods { grid-template-columns:1fr; } }
 .prefijo-err { color: var(--rojo); }
 
 .form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -424,8 +440,9 @@ body {
     font-weight: 700;
     z-index: 999;
     transition: transform 0.3s ease;
-    white-space: nowrap;
-    max-width: 90vw;
+    white-space: normal;      /* V6: los errores largos se leen completos */
+    width: max-content;
+    max-width: calc(100vw - 32px);
     text-align: center;
 }
 
@@ -683,9 +700,12 @@ body {
         <div class="seccion">
             <div class="seccion-header">
                 <div class="seccion-titulo">Clientes</div>
-                <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
-                    ＋ Nuevo cliente
-                </button>
+                <div class="botones-seccion">
+                    <button class="btn-primario" style="background:#5E35B1;" onclick="abrirModalPlanes()">🧩 Planes</button>
+                    <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
+                        ＋ Nuevo cliente
+                    </button>
+                </div>
             </div>
 
             <div id="barraAccionMovil">
@@ -695,6 +715,7 @@ body {
                     <button class="btn-accion" id="btnBarraActivar" style="background:#FFEBEE;color:var(--rojo);" onclick="accionBarraToggleActivo()">🔒 Susp./Activ.</button>
                     <button class="btn-accion" style="background:#FFF3E0;color:#E65100;" onclick="abrirModalVigencia(clienteSeleccionadoPrefijo)">📅 Vigencia</button>
                     <button class="btn-accion" style="background:#F3E5F5;color:#6A1B9A;" onclick="accionBarraResetPin()">🔑 PIN</button>
+                    <button class="btn-accion" style="background:#EDE7F6;color:#4527A0;" onclick="abrirModalPlanCliente(clienteSeleccionadoPrefijo)">🧩 Plan</button>
                 </div>
             </div>
 
@@ -719,17 +740,15 @@ body {
                 <label class="form-label">Prefijo *</label>
                 <input type="text" class="form-input" id="altaPrefijo"
                        placeholder="MC"
-                       maxlength="4"
+                       maxlength="3"
                        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,''); validarPrefijo()"
                        style="font-family:monospace;font-weight:900;letter-spacing:2px;font-size:1.1rem;">
                 <div class="prefijo-check" id="prefijoCheck"></div>
             </div>
             <div class="form-grupo">
                 <label class="form-label">Plan</label>
-                <select class="form-select" id="altaPlan">
-                    <option value="PRUEBA">Prueba (gratis)</option>
-                    <option value="BASICO">Básico</option>
-                    <option value="PRO">Pro</option>
+                <select class="form-select" id="altaPlan" onchange="alCambiarPlanAlta()">
+                    <option value="">Cargando planes…</option>
                 </select>
             </div>
         </div>
@@ -760,7 +779,12 @@ body {
                 <label class="form-label">Alias de pago</label>
                 <input type="text" class="form-input" id="altaAlias" placeholder="mariagarciabariloche">
             </div>
+            <div class="form-grupo">
+                <label class="form-label">Días de vigencia</label>
+                <input type="number" class="form-input" id="altaDias" min="0" step="1" placeholder="Sin vencimiento">
+            </div>
         </div>
+        <div class="ayuda" id="altaPlanAyuda"></div>
 
         <div class="modal-footer">
             <button class="btn-cancelar" onclick="cerrarModalAlta()">Cancelar</button>
@@ -797,11 +821,43 @@ body {
     </div>
 </div>
 
+<!-- V6: Modal plan y módulos de un cliente -->
+<div class="modal-overlay" id="modalPlanCliente">
+    <div class="modal">
+        <div class="modal-titulo">🧩 Plan y módulos — <span id="pcPrefijo"></span></div>
+        <div class="form-grupo">
+            <label class="form-label">Plan</label>
+            <div style="display:flex;gap:8px;">
+                <select class="form-select" id="pcPlan"></select>
+                <button class="btn-primario btn-verde" id="btnPcPlan" onclick="confirmarCambioPlan()" style="white-space:nowrap;">Cambiar</button>
+            </div>
+            <div class="ayuda" id="pcPlanAyuda"></div>
+        </div>
+        <label class="form-label">Módulos</label>
+        <div id="pcModulos"><div class="ayuda">Cargando…</div></div>
+        <div class="ayuda" style="margin-top:10px;">Un módulo funciona solo si el plan lo incluye <b>y</b> está encendido para este negocio. El servidor lo controla en cada operación.</div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cerrarModalPlanCliente()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- V6: Modal planes -->
+<div class="modal-overlay" id="modalPlanes">
+    <div class="modal" style="max-width:620px;">
+        <div class="modal-titulo">🧩 Planes</div>
+        <div id="planesContenido"></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cerrarModalPlanes()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 5;
+const APP_VERSION = 6;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -815,6 +871,18 @@ const LS_TOKEN_EXP = 'vao_admin_token_exp';
 
 let tokenAdmin = '';
 let clientesCargados = [];
+// V6: planes y regla de prefijo vienen del servidor (una sola regla para los dos lados)
+let planesInfo = { existe: false, planes: [], modulosImplementados: [], reglasPrefijo: { patron: '^[A-Z]{2,3}$', reservados: ['VAO'] } };
+
+function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function _adminApi(action, payload) {
+    const data = encodeURIComponent(JSON.stringify(Object.assign({ token: tokenAdmin }, payload || {})));
+    const r = await fetch(API_URL + '?action=' + action + '&data=' + data, { redirect: 'follow' });
+    return r.json();
+}
 
 // ── SESIÓN ────────────────────────────────────────────────────────
 function sesionGuardada() {
@@ -887,6 +955,7 @@ function mostrarAdmin() {
     document.getElementById('panelLogin').style.display = 'none';
     document.getElementById('panelAdmin').style.display = 'block';
     cargarClientes();
+    cargarPlanes();
 }
 
 async function cargarClientes() {
@@ -948,7 +1017,7 @@ function renderClientes() {
             <tr class="${c.prefijo === clienteSeleccionadoPrefijo ? 'fila-seleccionada' : ''}"
                 onclick="if(!event.target.closest('.acciones')) seleccionarCliente('${c.prefijo}')">
                 <td><span class="prefijo-tag">${c.prefijo}</span></td>
-                <td><strong>${c.nombre || '—'}</strong></td>
+                <td><strong>${_esc(c.nombre || '—')}</strong>${c.plan ? `<span class="badge-plan">${_esc(c.planNombre || c.plan)}</span>` : ''}${(c.revisar && c.revisar.length) ? `<span class="aviso-revisar" title="${_esc(c.revisar.join(' · '))}">⚠️ Revisar: ${_esc(c.revisar[0])}</span>` : ''}</td>
                 <td>
                     <span class="badge ${c.activo ? 'badge-activo' : 'badge-inactivo'}">
                         <span class="celda-icono-movil">${c.activo ? '✅' : '❌'}</span><span class="celda-texto">${c.activo ? '✅ Activo' : '❌ Inactivo'}</span>
@@ -956,7 +1025,7 @@ function renderClientes() {
                 </td>
                 <td>
                     <span class="badge ${c.vigente ? 'badge-activo' : 'badge-inactivo'}">
-                        ${c.fechaVence ? (c.vigente ? '📅 Vence ' : '⛔ Venció ') + new Date(c.fechaVence).toLocaleDateString('es-AR') : '— Sin vencimiento'}
+                        ${c.fechaVence ? (c.enTolerancia ? '⏳ En tolerancia, venció ' : c.vigente ? '📅 Vence ' : '⛔ Venció ') + new Date(c.fechaVence).toLocaleDateString('es-AR') : '— Sin vencimiento'}
                     </span>
                 </td>
                 <td>
@@ -983,6 +1052,9 @@ function renderClientes() {
                         <button class="btn-accion"
                             style="background:#F3E5F5;color:#6A1B9A;"
                             onclick="resetPin('${c.prefijo}', '${(c.nombre || '').replace(/'/g, "\\'")}')">🔑 Reset PIN</button>
+                        <button class="btn-accion"
+                            style="background:#EDE7F6;color:#4527A0;"
+                            onclick="abrirModalPlanCliente('${c.prefijo}')">🧩 Plan</button>
                     </div>
                 </td>
             </tr>`).join('')}
@@ -1036,6 +1108,12 @@ function accionBarraResetPin() {
 
 // ── ALTA CLIENTE ──────────────────────────────────────────────────
 function abrirModalAlta() {
+    if (!planesInfo.existe) {
+        toast('Primero creá los planes (botón 🧩 Planes)', 'rojo');
+        abrirModalPlanes();
+        return;
+    }
+    llenarSelectPlanes();
     document.getElementById('modalAlta').classList.add('visible');
     document.getElementById('altaPrefijo').focus();
 }
@@ -1043,45 +1121,62 @@ function abrirModalAlta() {
 function cerrarModalAlta() {
     document.getElementById('modalAlta').classList.remove('visible');
     ['altaPrefijo','altaNombre','altaContacto','altaTelefono',
-     'altaCorreo','altaAlias'].forEach(id => {
+     'altaCorreo','altaAlias','altaDias'].forEach(id => {
         document.getElementById(id).value = '';
         document.getElementById(id).classList.remove('error');
     });
     document.getElementById('prefijoCheck').textContent = '';
 }
 
+// V6: misma regla que el servidor (patrón y reservados vienen de getPlanes) +
+// verificación real contra TODAS las hojas en el servidor (verificarPrefijo).
+let _verifPrefijoTimer = null;
 function validarPrefijo() {
-    const prefijo = document.getElementById('altaPrefijo').value.trim();
+    const prefijo = document.getElementById('altaPrefijo').value.trim().toUpperCase();
     const check   = document.getElementById('prefijoCheck');
+    const marcar  = (txt, clase) => { check.textContent = txt; check.className = 'prefijo-check ' + clase; };
+    clearTimeout(_verifPrefijoTimer);
     if (prefijo.length < 2) { check.textContent = ''; return; }
-    const existe = clientesCargados.some(c => c.prefijo === prefijo);
-    if (existe) {
-        check.textContent = '⚠️ Prefijo ya existe';
-        check.className   = 'prefijo-check prefijo-err';
-    } else {
-        check.textContent = '✅ Disponible';
-        check.className   = 'prefijo-check prefijo-ok';
-    }
+    const reglas = planesInfo.reglasPrefijo || {};
+    if (!new RegExp(reglas.patron || '^[A-Z]{2,3}$').test(prefijo)) { marcar('⚠️ Debe tener 2 o 3 letras', 'prefijo-err'); return; }
+    if ((reglas.reservados || []).includes(prefijo)) { marcar('⚠️ Prefijo reservado del sistema', 'prefijo-err'); return; }
+    if (clientesCargados.some(c => c.prefijo === prefijo)) { marcar('⚠️ Prefijo ya existe', 'prefijo-err'); return; }
+    marcar('⏳ Verificando hojas…', 'prefijo-neutro');
+    _verifPrefijoTimer = setTimeout(async () => {
+        try {
+            const res = await _adminApi('verificarPrefijo', { prefijo });
+            if (document.getElementById('altaPrefijo').value.trim().toUpperCase() !== prefijo) return;
+            if (res.error) marcar('⚠️ ' + res.error, 'prefijo-err');
+            else if (res.disponible) marcar('✅ Disponible', 'prefijo-ok');
+            else marcar('⚠️ ' + (res.motivos || []).join(' · '), 'prefijo-err');
+        } catch (e) { marcar('', ''); }
+    }, 450);
 }
 
 async function crearCliente() {
-    const prefijo  = document.getElementById('altaPrefijo').value.trim();
+    const prefijo  = document.getElementById('altaPrefijo').value.trim().toUpperCase();
     const nombre   = document.getElementById('altaNombre').value.trim();
     const contacto = document.getElementById('altaContacto').value.trim();
     const telefono = document.getElementById('altaTelefono').value.trim();
     const correo   = document.getElementById('altaCorreo').value.trim();
     const alias    = document.getElementById('altaAlias').value.trim();
     const plan     = document.getElementById('altaPlan').value;
+    const diasTxt  = document.getElementById('altaDias').value.trim();
 
-    // Validaciones
+    // Validaciones (el servidor vuelve a validar TODO)
     let ok = true;
-    if (!prefijo || prefijo.length < 2) {
+    const reglas = planesInfo.reglasPrefijo || {};
+    if (!new RegExp(reglas.patron || '^[A-Z]{2,3}$').test(prefijo) || (reglas.reservados || []).includes(prefijo)) {
         document.getElementById('altaPrefijo').classList.add('error'); ok = false;
     }
     if (!nombre) {
         document.getElementById('altaNombre').classList.add('error'); ok = false;
     }
-    if (!ok) { toast('Completá los campos obligatorios', 'rojo'); return; }
+    if (!plan) { toast('Elegí un plan', 'rojo'); return; }
+    if (diasTxt !== '' && !/^\d+$/.test(diasTxt)) {
+        document.getElementById('altaDias').classList.add('error'); ok = false;
+    }
+    if (!ok) { toast('Revisá los campos marcados', 'rojo'); return; }
 
     if (clientesCargados.some(c => c.prefijo === prefijo)) {
         toast('El prefijo ' + prefijo + ' ya existe', 'rojo'); return;
@@ -1092,18 +1187,24 @@ async function crearCliente() {
     btn.disabled  = true;
 
     try {
-        const payload = { token: tokenAdmin, prefijo, nombre, telefono, correo, categoria: plan, aliasPago: alias, tokenMP: '' };
-        const data    = encodeURIComponent(JSON.stringify(payload));
-        const r       = await fetch(API_URL + '?action=crearVendedor&data=' + data, { redirect: 'follow' });
-        const res     = await r.json();
+        const res = await _adminApi('crearVendedor', { prefijo, nombre, contacto, telefono, correo, plan,
+                                                       diasVigencia: diasTxt, aliasPago: alias, tokenMP: '' });
 
-        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+        if (res.error) {
+            document.getElementById('prefijoCheck').textContent = (res.motivos && res.motivos.length) ? '⚠️ ' + res.motivos.join(' · ') : '';
+            document.getElementById('prefijoCheck').className = 'prefijo-check prefijo-err';
+            toast('Error: ' + res.error, 'rojo');
+            return;
+        }
 
         cerrarModalAlta();
         await cargarClientes();
 
         // El servidor generó el PIN — se muestra UNA sola vez, no se recupera después
-        alert('✅ Cliente ' + nombre + ' (' + prefijo + ') creado.\n\nPIN de acceso: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
+        const planNom = (planesInfo.planes.find(p => p.codigo === res.plan) || {}).nombre || res.plan;
+        alert('✅ Cliente ' + nombre + ' (' + res.prefijo + ') creado.\n\nPlan: ' + planNom +
+              (res.fechaVence ? '\nVence: ' + new Date(res.fechaVence).toLocaleDateString('es-AR') : '\nSin vencimiento') +
+              '\n\nPIN de acceso: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
 
     } catch(e) {
         toast('Error de conexión', 'rojo');
@@ -1111,6 +1212,207 @@ async function crearCliente() {
         btn.innerHTML = 'Crear cliente';
         btn.disabled  = false;
     }
+}
+
+// ── PLANES (V6) ───────────────────────────────────────────────────
+async function cargarPlanes() {
+    try {
+        const res = await _adminApi('getPlanes');
+        if (!res.error) planesInfo = res;
+    } catch (e) {}
+    llenarSelectPlanes();
+}
+
+function _nombreModulo(clave) {
+    const m = (planesInfo.modulosImplementados || []).find(x => x.clave === clave);
+    return m ? m.nombre : clave;
+}
+
+function llenarSelectPlanes() {
+    const sel = document.getElementById('altaPlan');
+    const previo = sel.value;
+    const activos = (planesInfo.planes || []).filter(p => p.activo);
+    sel.innerHTML = !planesInfo.existe
+        ? '<option value="">Primero creá los planes (🧩 Planes)</option>'
+        : activos.map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + '</option>').join('');
+    if (activos.some(p => p.codigo === previo)) sel.value = previo;
+    alCambiarPlanAlta();
+}
+
+function alCambiarPlanAlta() {
+    const p = (planesInfo.planes || []).find(x => x.codigo === document.getElementById('altaPlan').value);
+    const ayuda = document.getElementById('altaPlanAyuda');
+    if (!p) { ayuda.textContent = ''; return; }
+    document.getElementById('altaDias').value = p.diasVigencia ? p.diasVigencia : '';
+    const mods = Object.keys(p.modulos).filter(k => p.modulos[k]).map(_nombreModulo);
+    ayuda.textContent = 'Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.join(', ') : '') +
+        '. Días de vigencia vacío = sin vencimiento' + (p.diasTolerancia ? ' · tolerancia ' + p.diasTolerancia + ' días' : '') + '.';
+}
+
+function abrirModalPlanes() {
+    renderPlanes();
+    document.getElementById('modalPlanes').classList.add('visible');
+}
+function cerrarModalPlanes() {
+    document.getElementById('modalPlanes').classList.remove('visible');
+}
+
+function renderPlanes() {
+    const cont = document.getElementById('planesContenido');
+    if (!planesInfo.existe) {
+        cont.innerHTML = '<p class="ayuda" style="font-size:0.85rem;">Todavía no hay tabla de planes. Se crea la hoja <b>PLANES_VAO</b> con PRUEBA, BÁSICO y PRO; después podés editar cada uno acá. No se modifica ninguna hoja existente.</p>' +
+            '<div id="planesPrevia" class="ayuda" style="margin:10px 0 14px;">Calculando qué cambia para los negocios actuales…</div>' +
+            '<button class="btn-primario btn-verde" id="btnInitPlanes" onclick="crearPlanesIniciales()">Crear planes iniciales</button>';
+        cargarPreviaPlanes();
+        return;
+    }
+    const mods = planesInfo.modulosImplementados || [];
+    cont.innerHTML = '<p class="ayuda" style="margin-bottom:12px;">Los cambios se aplican a todos los negocios de ese plan. Solo se ofrecen módulos que ya tienen pantalla en el POS.</p>' +
+        planesInfo.planes.map(p => {
+        const id = _esc(p.codigo);
+        return `<div class="plan-card">
+            <h4>${_esc(p.codigo)}</h4>
+            <div class="form-fila">
+                <div class="form-grupo"><label class="form-label">Nombre</label><input class="form-input" id="pl_nombre_${id}" value="${_esc(p.nombre)}"></div>
+            </div>
+            <label class="chk" style="margin:0 0 12px;"><input type="checkbox" id="pl_activo_${id}" ${p.activo ? 'checked' : ''}> Activo (se puede elegir en altas)</label>
+            <div class="form-fila">
+                <div class="form-grupo"><label class="form-label">Días de vigencia</label><input type="number" min="0" step="1" class="form-input" id="pl_dias_${id}" value="${p.diasVigencia == null ? '' : p.diasVigencia}" placeholder="Sin vencimiento"></div>
+                <div class="form-grupo"><label class="form-label">Días de tolerancia</label><input type="number" min="0" step="1" class="form-input" id="pl_tol_${id}" value="${p.diasTolerancia || 0}"></div>
+            </div>
+            <div class="plan-mods">${mods.map(m => `<label><input type="checkbox" id="pl_mod_${id}_${m.clave}" ${p.modulos[m.clave] ? 'checked' : ''}> ${_esc(m.nombre)}</label>`).join('')}</div>
+            <button class="btn-primario btn-verde" id="pl_btn_${id}" onclick="guardarPlanUI('${id}')">Guardar ${_esc(p.nombre)}</button>
+        </div>`;
+    }).join('');
+}
+
+// V6: antes de crear los planes se muestra qué negocios actuales perderían
+// módulos encendidos (compatibilidad: nada cambia hasta confirmar).
+let _previaPlanes = null;
+async function cargarPreviaPlanes() {
+    const cont = document.getElementById('planesPrevia');
+    try {
+        const res = await _adminApi('previsualizarPlanes');
+        if (res.error) { cont.textContent = '❌ ' + res.error; return; }
+        _previaPlanes = res;
+        const nombres = {}; res.planesIniciales.forEach(p => nombres[p.codigo] = p.nombre);
+        const filas = res.planesIniciales.map(p => '<li><b>' + _esc(p.nombre) + '</b>: venta, cobro y buscador' +
+            (p.modulos.length ? ', ' + p.modulos.map(_nombreModuloPrevia).join(', ') : '') + '</li>').join('');
+        const afectados = res.impacto.filter(i => i.pierde.length);
+        const noRec = res.impacto.filter(i => !i.reconocido);
+        cont.innerHTML = '<b>Planes que se crean (después se pueden editar):</b><ul style="margin:4px 0 8px 18px;">' + filas + '</ul>' +
+            (afectados.length
+                ? '<div style="color:#C62828;font-weight:700;">⚠️ Estos negocios dejarían de usar módulos que hoy tienen encendidos:</div><ul style="margin:4px 0 8px 18px;">' +
+                  afectados.map(i => '<li>' + _esc(i.prefijo) + ' (' + _esc(nombres[i.plan] || i.plan) + '): ' + i.pierde.map(_esc).join(', ') + '</li>').join('') +
+                  '</ul>Si no corresponde, después de crear los planes cambiales el plan o editá el plan.'
+                : '<div style="color:#2E7D32;font-weight:700;">✅ Ningún negocio actual pierde módulos que tenga encendidos.</div>') +
+            (noRec.length ? '<div style="margin-top:6px;">Sin cambios (su plan no es PRUEBA/BÁSICO/PRO, siguen como hoy): ' + noRec.map(i => _esc(i.prefijo) + (i.plan ? ' (' + _esc(i.plan) + ')' : '')).join(', ') + '</div>' : '');
+    } catch (e) { cont.textContent = 'No se pudo calcular el impacto (sin conexión).'; }
+}
+function _nombreModuloPrevia(clave) {
+    const m = ((_previaPlanes && _previaPlanes.modulosImplementados) || []).find(x => x.clave === clave);
+    return m ? _esc(m.nombre) : _esc(clave);
+}
+
+async function crearPlanesIniciales() {
+    if (_previaPlanes && _previaPlanes.impacto.some(i => i.pierde.length) &&
+        !confirm('Hay negocios que dejarían de usar módulos que hoy tienen encendidos (ver la lista).\n\n¿Crear los planes igual?')) return;
+    const btn = document.getElementById('btnInitPlanes');
+    btn.disabled = true; btn.textContent = 'Creando...';
+    try {
+        const res = await _adminApi('inicializarPlanes');
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); }
+        else { planesInfo = res; toast('✅ Planes creados', 'verde'); }
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+    await cargarPlanes();
+    renderPlanes();
+}
+
+async function guardarPlanUI(codigo) {
+    const v = id => document.getElementById(id);
+    const dias = v('pl_dias_' + codigo).value.trim(), tol = v('pl_tol_' + codigo).value.trim();
+    if ((dias !== '' && !/^\d+$/.test(dias)) || (tol !== '' && !/^\d+$/.test(tol))) { toast('Los días deben ser números enteros', 'rojo'); return; }
+    const modulos = {};
+    (planesInfo.modulosImplementados || []).forEach(m => { modulos[m.clave] = v('pl_mod_' + codigo + '_' + m.clave).checked; });
+    const plan = { codigo, nombre: v('pl_nombre_' + codigo).value.trim(), activo: v('pl_activo_' + codigo).checked,
+                   diasVigencia: dias, diasTolerancia: tol === '' ? 0 : tol, modulos };
+    const btn = v('pl_btn_' + codigo); btn.disabled = true;
+    try {
+        const res = await _adminApi('guardarPlan', { plan });
+        if (res.error) toast('Error: ' + res.error, 'rojo');
+        else { toast(res.mensaje || '✅ Plan guardado', 'verde'); await cargarPlanes(); renderPlanes(); cargarClientes(); }
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+    finally { if (document.getElementById('pl_btn_' + codigo)) document.getElementById('pl_btn_' + codigo).disabled = false; }
+}
+
+// ── PLAN Y MÓDULOS DE UN CLIENTE (V6) ─────────────────────────────
+let pcPrefijo = '';
+
+async function abrirModalPlanCliente(prefijo) {
+    if (!prefijo) return;
+    pcPrefijo = prefijo;
+    document.getElementById('pcPrefijo').textContent = prefijo;
+    const c = clientesCargados.find(x => x.prefijo === prefijo) || {};
+    const sel = document.getElementById('pcPlan');
+    sel.innerHTML = (planesInfo.planes || []).filter(p => p.activo || p.codigo === c.plan)
+        .map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + (p.activo ? '' : ' (inactivo)') + '</option>').join('');
+    document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Cargando…</div>';
+    document.getElementById('pcPlanAyuda').textContent = planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).';
+    document.getElementById('modalPlanCliente').classList.add('visible');
+    await cargarModulosCliente();
+}
+
+function cerrarModalPlanCliente() {
+    document.getElementById('modalPlanCliente').classList.remove('visible');
+    pcPrefijo = '';
+}
+
+function renderModulosCliente(res) {
+    const cont = document.getElementById('pcModulos');
+    if (res.error) { cont.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(res.error) + '</div>'; return; }
+    if (res.plan && [...document.getElementById('pcPlan').options].some(o => o.value === res.plan)) document.getElementById('pcPlan').value = res.plan;
+    document.getElementById('pcPlanAyuda').textContent = res.planReconocido ? ('Plan actual: ' + res.planNombre) :
+        ('Plan actual "' + (res.plan || 'sin plan') + '" no está en la tabla de planes: hoy manda solo la configuración del negocio. Elegí un plan para ordenarlo.');
+    cont.innerHTML = res.modulos.map(m => {
+        const motivo = m.permitidoPorPlan === false ? 'el plan no lo incluye' : (!m.interruptor ? 'apagado para este negocio' : '');
+        const bloqueado = m.permitidoPorPlan === false && !m.interruptor;
+        return `<div class="modulo-fila">
+            <div><strong>${_esc(m.nombre)}</strong><span class="modulo-estado">${m.efectivo ? '✅ Funciona' : '⛔ No funciona'}${motivo ? ' — ' + motivo : ''}</span></div>
+            <input type="checkbox" ${m.interruptor ? 'checked' : ''} ${bloqueado ? 'disabled' : ''} title="Encendido para este negocio"
+                   onchange="cambiarModuloCliente('${_esc(m.clave)}', this.checked, this)">
+        </div>`;
+    }).join('');
+}
+
+async function cargarModulosCliente() {
+    try { renderModulosCliente(await _adminApi('getModulosCliente', { prefijo: pcPrefijo })); }
+    catch (e) { document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+
+async function cambiarModuloCliente(clave, activo, chk) {
+    chk.disabled = true;
+    try {
+        const res = await _adminApi('setModuloCliente', { prefijo: pcPrefijo, modulo: clave, activo });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); await cargarModulosCliente(); return; }
+        renderModulosCliente(res);
+        toast(activo ? '✅ Módulo encendido' : 'Módulo apagado', activo ? 'verde' : '');
+    } catch (e) { toast('Error de conexión', 'rojo'); await cargarModulosCliente(); }
+}
+
+async function confirmarCambioPlan() {
+    const sel = document.getElementById('pcPlan');
+    const plan = sel.value; if (!plan) return;
+    const nombre = sel.options[sel.selectedIndex].text;
+    if (!confirm('¿Pasar ' + pcPrefijo + ' al plan ' + nombre + '?\n\nNo se tocan ventas, fechas, PIN ni estado. Los módulos pasan a ser los del plan nuevo.')) return;
+    const btn = document.getElementById('btnPcPlan'); btn.disabled = true;
+    try {
+        const res = await _adminApi('cambiarPlanCliente', { prefijo: pcPrefijo, plan });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+        toast(res.mensaje, 'verde');
+        await cargarModulosCliente();
+        cargarClientes();
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+    finally { btn.disabled = false; }
 }
 
 async function toggleActivo(prefijo, estaActivo) {
