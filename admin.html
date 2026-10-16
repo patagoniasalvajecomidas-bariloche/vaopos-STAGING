@@ -839,10 +839,12 @@ body {
             </div>
             <div class="ayuda" id="pcPlanAyuda"></div>
         </div>
+        <div id="pcCambio" style="display:none;margin-bottom:14px;"></div>
         <div id="pcPrueba" style="display:none;margin-bottom:14px;"></div>
+        <div id="pcCheckpoint" style="margin-bottom:14px;"></div>
         <label class="form-label">Módulos</label>
         <div id="pcModulos"><div class="ayuda">Cargando…</div></div>
-        <div class="ayuda" style="margin-top:10px;">Un módulo funciona solo si el plan lo incluye <b>y</b> está encendido para este negocio. El servidor lo controla en cada operación.</div>
+        <div class="ayuda" style="margin-top:10px;" id="pcModulosAyuda">Un módulo funciona solo si el plan lo incluye <b>y</b> está encendido para este negocio. El servidor lo controla en cada operación.</div>
         <div class="modal-footer">
             <button class="btn-cancelar" onclick="cerrarModalPlanCliente()">Cerrar</button>
         </div>
@@ -864,7 +866,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 8;
+const APP_VERSION = 9;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -1381,7 +1383,8 @@ function renderPlanes() {
         return;
     }
     const mods = planesInfo.modulosImplementados || [];
-    cont.innerHTML = '<p class="ayuda" style="margin-bottom:12px;">Los cambios se aplican a todos los negocios de ese plan. Solo se ofrecen módulos que ya tienen pantalla en el POS.</p>' +
+    cont.innerHTML = '<p class="ayuda" style="margin-bottom:12px;">Los cambios se aplican a todos los negocios de ese plan. Solo se ofrecen módulos que ya tienen pantalla en el POS. Los negocios existentes NO se modifican solos: revisalos con el checkpoint.</p>' +
+        '<button class="btn-primario" style="background:#455A64;margin-bottom:12px;" onclick="abrirCheckpointGeneral()">🔍 Checkpoint de planes y negocios (solo lectura)</button><div id="cpGeneral"></div>' +
         planesInfo.planes.map(p => {
         const id = _esc(p.codigo);
         return `<div class="plan-card">
@@ -1474,6 +1477,8 @@ async function abrirModalPlanCliente(prefijo) {
     document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Cargando…</div>';
     document.getElementById('pcPlanAyuda').textContent = planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).';
     _renderPruebaCliente(c);
+    document.getElementById('pcCambio').style.display = 'none'; _previaCambio = null;
+    document.getElementById('pcCheckpoint').innerHTML = '';
     document.getElementById('modalPlanCliente').classList.add('visible');
     await cargarModulosCliente();
 }
@@ -1489,9 +1494,12 @@ function renderModulosCliente(res) {
     if (res.plan && [...document.getElementById('pcPlan').options].some(o => o.value === res.plan)) document.getElementById('pcPlan').value = res.plan;
     document.getElementById('pcPlanAyuda').textContent = res.planReconocido ? ('Plan actual: ' + res.planNombre) :
         ('Plan actual "' + (res.plan || 'sin plan') + '" no está en la tabla de planes: hoy manda solo la configuración del negocio. Elegí un plan para ordenarlo.');
+    document.getElementById('pcModulosAyuda').innerHTML = res.editable
+        ? 'Plan <b>Personalizado</b>: elegí los módulos uno por uno (dentro de lo que permite PLANES_VAO).'
+        : 'Los módulos de este plan los define <b>PLANES_VAO</b> y no se cambian uno por uno. Si hay diferencias, usá el checkpoint de arriba. Para elegir módulos sueltos, pasalo a Personalizado.';
     cont.innerHTML = res.modulos.map(m => {
         const motivo = m.permitidoPorPlan === false ? 'el plan no lo incluye' : (!m.interruptor ? 'apagado para este negocio' : '');
-        const bloqueado = m.permitidoPorPlan === false && !m.interruptor;
+        const bloqueado = !res.editable || (m.permitidoPorPlan === false && !m.interruptor); // V9: solo PERSONALIZADO se edita
         return `<div class="modulo-fila">
             <div><strong>${_esc(m.nombre)}</strong><span class="modulo-estado">${m.efectivo ? '✅ Funciona' : '⛔ No funciona'}${motivo ? ' — ' + motivo : ''}</span></div>
             <input type="checkbox" ${m.interruptor ? 'checked' : ''} ${bloqueado ? 'disabled' : ''} title="Encendido para este negocio"
@@ -1501,6 +1509,7 @@ function renderModulosCliente(res) {
 }
 
 async function cargarModulosCliente() {
+    cargarCheckpointCliente();
     try { renderModulosCliente(await _adminApi('getModulosCliente', { prefijo: pcPrefijo })); }
     catch (e) { document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Error de conexión</div>'; }
 }
@@ -1515,16 +1524,39 @@ async function cambiarModuloCliente(clave, activo, chk) {
     } catch (e) { toast('Error de conexión', 'rojo'); await cargarModulosCliente(); }
 }
 
+// V9: cambiar de plan = 1) vista previa de módulos que se activan/desactivan, 2) confirmar.
+let _previaCambio = null;
 async function confirmarCambioPlan() {
     const sel = document.getElementById('pcPlan');
     const plan = sel.value; if (!plan) return;
-    const nombre = sel.options[sel.selectedIndex].text;
-    if (!confirm('¿Pasar ' + pcPrefijo + ' al plan ' + nombre + '?\n\nNo se tocan ventas, fechas, PIN ni estado. Los módulos pasan a ser los del plan nuevo.')) return;
-    const btn = document.getElementById('btnPcPlan'); btn.disabled = true;
+    const box = document.getElementById('pcCambio');
+    box.style.display = 'block'; box.innerHTML = '<div class="ayuda">Calculando…</div>';
     try {
-        const res = await _adminApi('cambiarPlanCliente', { prefijo: pcPrefijo, plan });
-        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+        const r = await _adminApi('previsualizarCambioPlan', { prefijo: pcPrefijo, plan });
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        _previaCambio = r;
+        const lista = (t, arr, color) => arr.length ? '<div style="color:' + color + ';margin-top:4px;">' + t + ' <b>' + arr.map(_esc).join(', ') + '</b></div>' : '';
+        box.innerHTML = '<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:10px;padding:10px;font-size:0.84rem;">' +
+            'Pasar <b>' + _esc(r.prefijo) + '</b> de <b>' + _esc(r.planActual || '—') + '</b> a <b>' + _esc(r.planNombre) + '</b>:' +
+            (r.seActivan.length || r.seDesactivan.length ? lista('✅ Se activan:', r.seActivan, '#2E7D32') + lista('⛔ Se desactivan:', r.seDesactivan, '#C62828') : '<div style="margin-top:4px;">Los módulos quedan igual.</div>') +
+            (r.noDefinidos.length ? '<div class="ayuda">PLANES_VAO no define: ' + r.noDefinidos.map(_esc).join(', ') + ' (se dejan como están).</div>' : '') +
+            (r.avisoVigencia ? '<div class="ayuda" style="color:#E65100;">ℹ️ ' + _esc(r.avisoVigencia) + '</div>' : '') +
+            '<div class="ayuda">No se tocan ventas, fechas, PIN ni estado.</div>' +
+            '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'pcCambio\').style.display=\'none\'">Cancelar</button>' +
+            '<button class="btn-accion" id="btnConfCambio" style="background:var(--verde);color:white;" onclick="aplicarCambioPlan()">✅ Confirmar cambio</button></div></div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+
+async function aplicarCambioPlan() {
+    if (!_previaCambio) return;
+    const btn = document.getElementById('btnConfCambio'); btn.disabled = true;
+    try {
+        const res = await _adminApi('cambiarPlanCliente', { prefijo: pcPrefijo, plan: _previaCambio.planNuevo, firma: _previaCambio.firma });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); btn.disabled = false; return; }
+        document.getElementById('pcCambio').innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(res.mensaje) +
+            (res.modulos ? '<br>Activos: <b>' + res.modulos.activos.map(_esc).join(', ') + '</b>' + (res.modulos.inactivos.length ? ' · Inactivos: ' + res.modulos.inactivos.map(_esc).join(', ') : '') : '') + '</div>';
         toast(res.mensaje, 'verde');
+        _previaCambio = null;
         await cargarModulosCliente();
         await cargarClientes();
         _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
@@ -1532,8 +1564,7 @@ async function confirmarCambioPlan() {
             alert('ℹ️ ' + res.aviso);
             const pre = pcPrefijo; cerrarModalPlanCliente(); abrirModalVigencia(pre);
         }
-    } catch (e) { toast('Error de conexión', 'rojo'); }
-    finally { btn.disabled = false; }
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
 }
 
 async function toggleActivo(prefijo, estaActivo) {
@@ -1734,6 +1765,67 @@ async function regularizarPruebaUI() {
         toast(res.mensaje, res.estado === 'VENCIDA' ? 'rojo' : 'verde');
         await cargarClientes();
         _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+
+// ── V9: CHECKPOINT DE MÓDULOS (solo lectura) y sincronización con confirmación ──
+let _cpCliente = null;
+async function cargarCheckpointCliente() {
+    const box = document.getElementById('pcCheckpoint');
+    try {
+        const r = await _adminApi('checkpointModulos', { prefijo: pcPrefijo });
+        if (r.error) { box.innerHTML = ''; return; }
+        _cpCliente = r.negocios[0];
+        box.innerHTML = _htmlCheckpoint(_cpCliente, true);
+    } catch (e) { box.innerHTML = ''; }
+}
+function _htmlCheckpoint(n, conBoton) {
+    const si = v => v === null ? '(no figura)' : (v ? 'encendido' : 'apagado');
+    let h = '<div style="border:1px solid var(--borde);border-radius:10px;padding:10px;font-size:0.82rem;">🔍 <b>Checkpoint ' + _esc(n.prefijo) + '</b> — plan ' + _esc(n.planNombre || n.plan || '—') + ': ';
+    if (n.estado === 'COINCIDE') h += '<span style="color:#2E7D32;font-weight:800;">✅ CONFIG coincide con el plan</span>';
+    else if (n.estado === 'DIFERENCIAS') {
+        h += '<span style="color:#E65100;font-weight:800;">⚠️ ' + n.diferencias.length + ' diferencia' + (n.diferencias.length === 1 ? '' : 's') + '</span><ul style="margin:6px 0 0 18px;">' +
+            n.diferencias.map(d => '<li>' + _esc(d.nombre) + ': en CONFIG <b>' + si(d.enConfig) + '</b> · según el plan <b>' + si(d.segunPlan) + '</b></li>').join('') + '</ul>';
+        if (conBoton) h += '<div id="cpSync" style="margin-top:8px;"><button class="btn-accion" style="background:#FB8C00;color:white;" onclick="document.getElementById(\'cpSyncConf\').style.display=\'block\'">Sincronizar con el plan</button>' +
+            '<div id="cpSyncConf" style="display:none;margin-top:6px;"><b>¿Confirmás?</b> Se cambian solo esos interruptores en CONFIG_' + _esc(n.prefijo) + '. ' +
+            '<button class="btn-accion" style="background:#C62828;color:white;" onclick="sincronizarClienteUI()">Sí, sincronizar</button> ' +
+            '<button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'cpSyncConf\').style.display=\'none\'">No</button></div></div>';
+    } else h += '<span style="color:#C62828;font-weight:800;">No se puede comparar</span>';
+    if (n.avisos && n.avisos.length) h += '<div class="ayuda">' + n.avisos.map(_esc).join('<br>') + '</div>';
+    return h + '</div>';
+}
+async function sincronizarClienteUI() {
+    if (!_cpCliente) return;
+    try {
+        const r = await _adminApi('sincronizarModulos', { prefijo: _cpCliente.prefijo, confirmar: true, firma: _cpCliente.firma });
+        if (r.error) { toast('Error: ' + r.error, 'rojo'); await cargarCheckpointCliente(); return; }
+        toast(r.mensaje, 'verde');
+        await cargarModulosCliente();
+        document.getElementById('pcCheckpoint').insertAdjacentHTML('beforeend', '<div class="ayuda" style="color:#2E7D32;">Activos: <b>' + r.activos.map(_esc).join(', ') + '</b>' + (r.inactivos.length ? ' · Inactivos: ' + r.inactivos.map(_esc).join(', ') : '') + '</div>');
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+async function abrirCheckpointGeneral() {
+    const box = document.getElementById('cpGeneral');
+    box.innerHTML = '<div class="ayuda">Leyendo…</div>';
+    try {
+        const [pl, cm] = await Promise.all([_adminApi('checkpointPlanes'), _adminApi('checkpointModulos')]);
+        let h = '<div style="background:#ECEFF1;border-radius:12px;padding:10px;margin-bottom:12px;font-size:0.82rem;">';
+        h += '<b>PLANES_VAO</b>: ' + (pl.avisos && pl.avisos.length ? '<br>' + pl.avisos.map(a => '⚠️ ' + _esc(a)).join('<br>') : '✅ sin observaciones');
+        if (pl.corregiblePrueba) h += '<br><button class="btn-accion" style="margin-top:6px;background:#FB8C00;color:white;" onclick="accionPlanes(\'corregirPlanesFijos\', this)">Escribir 7 + 3 en la fila PRUEBA</button>';
+        if (pl.existe && !pl.tienePersonalizado) h += '<br><button class="btn-accion" style="margin-top:6px;background:#5E35B1;color:white;" onclick="accionPlanes(\'agregarPlanPersonalizado\', this)">Agregar plan PERSONALIZADO</button>';
+        h += '<div style="margin-top:10px;"><b>Negocios</b> (solo lectura; para sincronizar, abrí 🧩 Plan de cada uno):</div>';
+        h += (cm.negocios || []).map(n => '<div style="margin-top:4px;">' + _esc(n.prefijo) + ' · ' + _esc(n.planNombre || n.plan || '—') + ' · ' +
+            (n.estado === 'COINCIDE' ? '✅ coincide' : n.estado === 'DIFERENCIAS' ? '⚠️ ' + n.diferencias.map(d => _esc(d.nombre) + (d.enConfig ? ' de más' : ' de menos')).join(', ') : '❔ ' + _esc((n.avisos || []).join(' '))) + '</div>').join('');
+        box.innerHTML = h + '</div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+async function accionPlanes(accion, btn) {
+    if (btn.dataset.conf !== '1') { btn.dataset.conf = '1'; btn.textContent = '¿Confirmás? Tocá de nuevo'; return; } // confirmación propia
+    btn.disabled = true;
+    try {
+        const r = await _adminApi(accion, { confirmar: true });
+        toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+        await cargarPlanes(); renderPlanes(); abrirCheckpointGeneral();
     } catch (e) { toast('Error de conexión', 'rojo'); }
 }
 </script>
