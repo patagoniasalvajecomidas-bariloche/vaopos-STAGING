@@ -866,7 +866,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -1540,6 +1540,7 @@ async function confirmarCambioPlan() {
             'Pasar <b>' + _esc(r.prefijo) + '</b> de <b>' + _esc(r.planActual || '—') + '</b> a <b>' + _esc(r.planNombre) + '</b>:' +
             (r.seActivan.length || r.seDesactivan.length ? lista('✅ Se activan:', r.seActivan, '#2E7D32') + lista('⛔ Se desactivan:', r.seDesactivan, '#C62828') : '<div style="margin-top:4px;">Los módulos quedan igual.</div>') +
             (r.noDefinidos.length ? '<div class="ayuda">PLANES_VAO no define: ' + r.noDefinidos.map(_esc).join(', ') + ' (se dejan como están).</div>' : '') +
+            (r.contradicciones && r.contradicciones.length ? r.contradicciones.map(c => '<div class="ayuda" style="color:#E65100;">⚠️ ' + _esc(c.mensaje) + '</div>').join('') : '') +
             (r.avisoVigencia ? '<div class="ayuda" style="color:#E65100;">ℹ️ ' + _esc(r.avisoVigencia) + '</div>' : '') +
             '<div class="ayuda">No se tocan ventas, fechas, PIN ni estado.</div>' +
             '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'pcCambio\').style.display=\'none\'">Cancelar</button>' +
@@ -1552,7 +1553,12 @@ async function aplicarCambioPlan() {
     const btn = document.getElementById('btnConfCambio'); btn.disabled = true;
     try {
         const res = await _adminApi('cambiarPlanCliente', { prefijo: pcPrefijo, plan: _previaCambio.planNuevo, firma: _previaCambio.firma });
-        if (res.error) { toast('Error: ' + res.error, 'rojo'); btn.disabled = false; return; }
+        if (res.error) {
+            toast('Error: ' + res.error, 'rojo');
+            if (res.firmaVieja) { _previaCambio = null; await confirmarCambioPlan(); return; } // V10: algo cambió → vista previa nueva
+            if (res.cambioPendiente) { await cargarCheckpointCliente(); }
+            btn.disabled = false; return;
+        }
         document.getElementById('pcCambio').innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(res.mensaje) +
             (res.modulos ? '<br>Activos: <b>' + res.modulos.activos.map(_esc).join(', ') + '</b>' + (res.modulos.inactivos.length ? ' · Inactivos: ' + res.modulos.inactivos.map(_esc).join(', ') : '') : '') + '</div>';
         toast(res.mensaje, 'verde');
@@ -1782,7 +1788,22 @@ async function cargarCheckpointCliente() {
 function _htmlCheckpoint(n, conBoton) {
     const si = v => v === null ? '(no figura)' : (v ? 'encendido' : 'apagado');
     let h = '<div style="border:1px solid var(--borde);border-radius:10px;padding:10px;font-size:0.82rem;">🔍 <b>Checkpoint ' + _esc(n.prefijo) + '</b> — plan ' + _esc(n.planNombre || n.plan || '—') + ': ';
+    if (n.estado === 'CAMBIO_INCOMPLETO') { // V10: un cambio de plan quedó a mitad de camino
+        const cp = n.cambioPendiente || {};
+        const txt = v => v === null || v === undefined ? '—' : (v === true ? 'encendido' : v === false ? 'apagado' : String(v));
+        h += '<span style="color:#C62828;font-weight:800;">⛔ Cambio de plan sin terminar: ' + _esc(cp.de) + ' → ' + _esc(cp.a) + '</span>' +
+            '<div class="ayuda">No se aceptan otros cambios en este negocio hasta resolverlo. Nada se aplica sin tu confirmación.</div>' +
+            '<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:0.78rem;"><tr style="background:#ECEFF1;"><th style="text-align:left;padding:3px;">Qué</th><th>Antes</th><th>Hoy</th><th>Después</th></tr>' +
+            (cp.items || []).map(it => '<tr style="border-top:1px solid var(--borde);"><td style="padding:4px 3px;">' + _esc(it.que) + '</td><td style="text-align:center;padding:4px 6px;">' + _esc(txt(it.antes)) + '</td><td style="text-align:center;padding:4px 6px;font-weight:800;">' + _esc(txt(it.hoy)) + '</td><td style="text-align:center;padding:4px 6px;">' + _esc(txt(it.despues)) + '</td></tr>').join('') + '</table>' +
+            '<div class="ayuda">Completar: faltan ' + cp.faltaCompletar + ' paso(s) · Revertir: faltan ' + cp.faltaRevertir + ' paso(s).</div>';
+        if (conBoton) h += '<div id="cpRec" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+            '<button class="btn-accion" style="background:var(--verde);color:white;" onclick="recuperarCambioUI(\'completar\', this)">Completar el cambio (' + _esc(cp.a) + ')</button>' +
+            '<button class="btn-accion" style="background:#607D8B;color:white;" onclick="recuperarCambioUI(\'revertir\', this)">Revertir (volver a ' + _esc(cp.de) + ')</button></div>';
+        if (n.avisos && n.avisos.length) h += '<div class="ayuda">' + n.avisos.map(_esc).join('<br>') + '</div>';
+        return h + '</div>';
+    }
     if (n.estado === 'COINCIDE') h += '<span style="color:#2E7D32;font-weight:800;">✅ CONFIG coincide con el plan</span>';
+    else if (n.estado === 'REVISAR_PLAN') h += '<span style="color:#E65100;font-weight:800;">⚠️ CONFIG coincide, pero PLANES_VAO contradice una regla</span>';
     else if (n.estado === 'DIFERENCIAS') {
         h += '<span style="color:#E65100;font-weight:800;">⚠️ ' + n.diferencias.length + ' diferencia' + (n.diferencias.length === 1 ? '' : 's') + '</span><ul style="margin:6px 0 0 18px;">' +
             n.diferencias.map(d => '<li>' + _esc(d.nombre) + ': en CONFIG <b>' + si(d.enConfig) + '</b> · según el plan <b>' + si(d.segunPlan) + '</b></li>').join('') + '</ul>';
@@ -1790,9 +1811,37 @@ function _htmlCheckpoint(n, conBoton) {
             '<div id="cpSyncConf" style="display:none;margin-top:6px;"><b>¿Confirmás?</b> Se cambian solo esos interruptores en CONFIG_' + _esc(n.prefijo) + '. ' +
             '<button class="btn-accion" style="background:#C62828;color:white;" onclick="sincronizarClienteUI()">Sí, sincronizar</button> ' +
             '<button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'cpSyncConf\').style.display=\'none\'">No</button></div></div>';
-    } else h += '<span style="color:#C62828;font-weight:800;">No se puede comparar</span>';
+    } else if (n.estado !== 'REVISAR_PLAN') h += '<span style="color:#C62828;font-weight:800;">No se puede comparar</span>';
+    // V10: Fiados siempre a la vista (PRUEBA, BÁSICO y PRO lo incluyen)
+    if (n.fiados && n.fiados.regla) {
+        const sn = v => v === null ? '(no figura)' : (v ? 'SÍ' : 'NO');
+        h += '<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:' + (n.fiados.ok ? '#E8F5E9' : '#FFF3E0') + ';">' +
+            (n.fiados.ok ? '✅' : '⚠️') + ' <b>Fiados</b> — en CONFIG: <b>' + si(n.fiados.enConfig) + '</b> · en PLANES_VAO: <b>' + sn(n.fiados.enPlanilla) + '</b> · regla: <b>incluido</b>' +
+            (n.fiados.mensaje ? '<div class="ayuda" style="margin:2px 0 0;">' + _esc(n.fiados.mensaje) + '</div>' : '') + '</div>';
+    }
+    if (n.contradicciones && n.contradicciones.length) h += n.contradicciones.filter(c => !(n.fiados && n.fiados.regla && c.clave === 'extra_fiados'))
+        .map(c => '<div class="ayuda" style="color:#E65100;">⚠️ ' + _esc(c.mensaje) + '</div>').join('');
+    if (n.fiados && n.fiados.regla && n.fiados.enPlanilla === false) h += '<div class="ayuda">No se apaga Fiados en ningún negocio por esta planilla. Corregila en 🧩 Planes → Checkpoint → "Corregir reglas fijas".</div>';
+    // V10: estado de la PRUEBA (regularizada o pendiente)
+    if (n.prueba) {
+        h += '<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:' + (n.prueba.regularizada ? '#E3F2FD' : '#FFEBEE') + ';">' +
+            (n.prueba.regularizada ? '🧪 <b>PRUEBA 7 + 3</b>: ' + _esc(n.prueba.estado) + ' (día ' + n.prueba.dia + ') · vence ' + _esc(n.prueba.venceTxt) + ' · gracia hasta ' + _esc(n.prueba.finGraciaTxt)
+                                   : '🧪 <b>' + _esc(n.prueba.aviso) + '</b>') + '</div>';
+    }
     if (n.avisos && n.avisos.length) h += '<div class="ayuda">' + n.avisos.map(_esc).join('<br>') + '</div>';
     return h + '</div>';
+}
+async function recuperarCambioUI(modo, btn) {
+    if (!_cpCliente || !_cpCliente.cambioPendiente) return;
+    if (btn.dataset.conf !== '1') { // confirmación propia (sin confirm nativo)
+        btn.dataset.conf = '1'; btn.textContent = (modo === 'completar' ? '¿Completar? ' : '¿Revertir? ') + 'Tocá de nuevo para confirmar'; return;
+    }
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarCambioPlan', { prefijo: _cpCliente.prefijo, confirmar: true, modo, firma: _cpCliente.cambioPendiente.firma });
+        toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+        await cargarCheckpointCliente(); await cargarModulosCliente(); await cargarClientes();
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
 }
 async function sincronizarClienteUI() {
     if (!_cpCliente) return;
@@ -1811,11 +1860,20 @@ async function abrirCheckpointGeneral() {
         const [pl, cm] = await Promise.all([_adminApi('checkpointPlanes'), _adminApi('checkpointModulos')]);
         let h = '<div style="background:#ECEFF1;border-radius:12px;padding:10px;margin-bottom:12px;font-size:0.82rem;">';
         h += '<b>PLANES_VAO</b>: ' + (pl.avisos && pl.avisos.length ? '<br>' + pl.avisos.map(a => '⚠️ ' + _esc(a)).join('<br>') : '✅ sin observaciones');
-        if (pl.corregiblePrueba) h += '<br><button class="btn-accion" style="margin-top:6px;background:#FB8C00;color:white;" onclick="accionPlanes(\'corregirPlanesFijos\', this)">Escribir 7 + 3 en la fila PRUEBA</button>';
+        if (pl.corregibleFijos) h += '<br><button class="btn-accion" style="margin-top:6px;background:#FB8C00;color:white;" onclick="accionPlanes(\'corregirPlanesFijos\', this)">Corregir reglas fijas en PLANES_VAO' +
+            (pl.corregiblePrueba ? ' · PRUEBA 7 + 3' : '') + (pl.fiadosFaltan && pl.fiadosFaltan.length ? ' · Fiados en ' + pl.fiadosFaltan.map(_esc).join(', ') : '') + '</button>' +
+            '<div class="ayuda">Solo cambia la planilla de planes. Ningún negocio cambia: cada uno se revisa en su checkpoint.</div>';
         if (pl.existe && !pl.tienePersonalizado) h += '<br><button class="btn-accion" style="margin-top:6px;background:#5E35B1;color:white;" onclick="accionPlanes(\'agregarPlanPersonalizado\', this)">Agregar plan PERSONALIZADO</button>';
+        const rs = cm.resumen || {};
+        if ((rs.cambiosIncompletos || []).length) h += '<div style="margin-top:8px;color:#C62828;font-weight:800;">⛔ Cambio de plan sin terminar: ' + rs.cambiosIncompletos.map(_esc).join(', ') + '</div>';
+        if ((rs.pruebasSinRegularizar || []).length) h += '<div style="margin-top:4px;color:#C62828;font-weight:800;">🧪 PRUEBA sin regularizar (no vencen solas): ' + rs.pruebasSinRegularizar.map(_esc).join(', ') + '</div>';
+        if ((rs.fiadosConDiferencia || []).length) h += '<div style="margin-top:4px;color:#E65100;font-weight:800;">⚠️ Fiados con diferencia: ' + rs.fiadosConDiferencia.map(_esc).join(', ') + '</div>';
         h += '<div style="margin-top:10px;"><b>Negocios</b> (solo lectura; para sincronizar, abrí 🧩 Plan de cada uno):</div>';
         h += (cm.negocios || []).map(n => '<div style="margin-top:4px;">' + _esc(n.prefijo) + ' · ' + _esc(n.planNombre || n.plan || '—') + ' · ' +
-            (n.estado === 'COINCIDE' ? '✅ coincide' : n.estado === 'DIFERENCIAS' ? '⚠️ ' + n.diferencias.map(d => _esc(d.nombre) + (d.enConfig ? ' de más' : ' de menos')).join(', ') : '❔ ' + _esc((n.avisos || []).join(' '))) + '</div>').join('');
+            (n.estado === 'COINCIDE' ? '✅ coincide' : n.estado === 'DIFERENCIAS' ? '⚠️ ' + n.diferencias.map(d => _esc(d.nombre) + (d.enConfig ? ' de más' : ' de menos')).join(', ')
+             : n.estado === 'REVISAR_PLAN' ? '⚠️ revisar PLANES_VAO' : n.estado === 'CAMBIO_INCOMPLETO' ? '⛔ cambio sin terminar' : '❔ ' + _esc((n.avisos || []).join(' '))) +
+            (n.fiados && n.fiados.regla && !n.fiados.ok ? ' · <span style="color:#E65100;">Fiados ⚠️</span>' : '') +
+            (n.prueba ? (n.prueba.regularizada ? ' · 🧪 ' + _esc(n.prueba.estado) + ' día ' + n.prueba.dia : ' · <span style="color:#C62828;">🧪 sin regularizar</span>') : '') + '</div>').join('');
         box.innerHTML = h + '</div>';
     } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
 }
