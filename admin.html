@@ -839,6 +839,7 @@ body {
             </div>
             <div class="ayuda" id="pcPlanAyuda"></div>
         </div>
+        <div id="pcPrueba" style="display:none;margin-bottom:14px;"></div>
         <label class="form-label">Módulos</label>
         <div id="pcModulos"><div class="ayuda">Cargando…</div></div>
         <div class="ayuda" style="margin-top:10px;">Un módulo funciona solo si el plan lo incluye <b>y</b> está encendido para este negocio. El servidor lo controla en cada operación.</div>
@@ -863,7 +864,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -1059,9 +1060,12 @@ function renderClientes() {
                     </span>
                 </td>
                 <td>
+                    ${c.prueba && c.prueba.regularizada ? `<span class="badge ${c.prueba.estado === 'VENCIDA' ? 'badge-inactivo' : (c.prueba.estado === 'GRACIA' ? 'badge-pendiente' : 'badge-activo')}">${
+                        c.prueba.estado === 'ACTIVA' ? '🧪 Día ' + c.prueba.dia + '/7 · hasta ' + c.prueba.venceTxt :
+                        c.prueba.estado === 'GRACIA' ? '⏳ Gracia hasta ' + c.prueba.finGraciaTxt : '🔒 Prueba vencida (consulta)'}</span>` : `
                     <span class="badge ${c.vigente ? 'badge-activo' : 'badge-inactivo'}">
                         ${c.fechaVence ? (c.enTolerancia ? '⏳ En tolerancia, venció ' : c.vigente ? '📅 Vence ' : '⛔ Venció ') + new Date(c.fechaVence).toLocaleDateString('es-AR') : '— Sin vencimiento'}
-                    </span>
+                    </span>`}
                 </td>
                 <td>
                     <span class="badge ${c.tienePin ? 'badge-ok' : 'badge-pendiente'}">
@@ -1251,7 +1255,7 @@ async function crearCliente() {
     const correo   = document.getElementById('altaCorreo').value.trim();
     const alias    = document.getElementById('altaAlias').value.trim();
     const plan     = document.getElementById('altaPlan').value;
-    const diasTxt  = document.getElementById('altaDias').value.trim();
+    const diasTxt  = plan === 'PRUEBA' ? '' : document.getElementById('altaDias').value.trim(); // V8: PRUEBA la fija el servidor
 
     // Validaciones (el servidor vuelve a validar TODO)
     let ok = true;
@@ -1294,7 +1298,8 @@ async function crearCliente() {
         // El servidor generó el PIN — se muestra UNA sola vez, no se recupera después
         const planNom = (planesInfo.planes.find(p => p.codigo === res.plan) || {}).nombre || res.plan;
         alert('✅ Cliente ' + nombre + ' (' + res.prefijo + ') creado.\n\nPlan: ' + planNom +
-              (res.fechaVence ? '\nVence: ' + new Date(res.fechaVence).toLocaleDateString('es-AR') : '\nSin vencimiento') +
+              (res.prueba ? '\nPrueba: del ' + res.prueba.altaTxt + ' al ' + res.prueba.venceTxt + ' · gracia hasta ' + res.prueba.finGraciaTxt
+                          : (res.fechaVence ? '\nVence: ' + new Date(res.fechaVence).toLocaleDateString('es-AR') : '\nSin vencimiento')) +
               '\n\nPIN de acceso: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
 
     } catch(e) {
@@ -1342,8 +1347,18 @@ function alCambiarPlanAlta() {
     const p = (planesInfo.planes || []).find(x => x.codigo === document.getElementById('altaPlan').value);
     const ayuda = document.getElementById('altaPlanAyuda');
     if (!p) { ayuda.textContent = ''; return; }
-    document.getElementById('altaDias').value = p.diasVigencia ? p.diasVigencia : '';
     const mods = Object.keys(p.modulos).filter(k => p.modulos[k]).map(_nombreModulo);
+    const dias = document.getElementById('altaDias');
+    if (p.codigo === 'PRUEBA') {
+        // V8: PRUEBA = 7 días + 3 de gracia desde hoy (fecha del servidor). No se edita.
+        dias.value = '7'; dias.disabled = true;
+        const f = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('es-AR'); };
+        ayuda.innerHTML = '🧪 <b>Prueba fija:</b> empieza hoy (' + f(0) + '), funciona hasta el <b>' + f(6) + '</b> (día 7) y tiene gracia hasta el <b>' + f(9) +
+            '</b> (día 10). Después queda en modo consulta. No se puede cambiar ni renovar. Pide teléfono o correo (una prueba por persona).<br>Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.map(_esc).join(', ') : '') + '.';
+        return;
+    }
+    dias.disabled = false;
+    document.getElementById('altaDias').value = p.diasVigencia ? p.diasVigencia : '';
     ayuda.textContent = 'Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.join(', ') : '') +
         '. Días de vigencia vacío = sin vencimiento' + (p.diasTolerancia ? ' · tolerancia ' + p.diasTolerancia + ' días' : '') + '.';
 }
@@ -1376,9 +1391,10 @@ function renderPlanes() {
             </div>
             <label class="chk" style="margin:0 0 12px;"><input type="checkbox" id="pl_activo_${id}" ${p.activo ? 'checked' : ''}> Activo (se puede elegir en altas)</label>
             <div class="form-fila">
-                <div class="form-grupo"><label class="form-label">Días de vigencia</label><input type="number" min="0" step="1" class="form-input" id="pl_dias_${id}" value="${p.diasVigencia == null ? '' : p.diasVigencia}" placeholder="Sin vencimiento"></div>
-                <div class="form-grupo"><label class="form-label">Días de tolerancia</label><input type="number" min="0" step="1" class="form-input" id="pl_tol_${id}" value="${p.diasTolerancia || 0}"></div>
+                <div class="form-grupo"><label class="form-label">Días de vigencia</label><input type="number" min="0" step="1" class="form-input" id="pl_dias_${id}" value="${p.diasVigencia == null ? '' : p.diasVigencia}" placeholder="Sin vencimiento" ${p.fijo ? 'disabled' : ''}></div>
+                <div class="form-grupo"><label class="form-label">${p.fijo ? 'Días de gracia' : 'Días de tolerancia'}</label><input type="number" min="0" step="1" class="form-input" id="pl_tol_${id}" value="${p.diasTolerancia || 0}" ${p.fijo ? 'disabled' : ''}></div>
             </div>
+            ${p.fijo ? '<div class="ayuda" style="margin:-4px 0 8px;">🔒 Duración fija de la prueba: 7 días + 3 de gracia. No se puede cambiar.</div>' : ''}
             <div class="plan-mods">${mods.map(m => `<label><input type="checkbox" id="pl_mod_${id}_${m.clave}" ${p.modulos[m.clave] ? 'checked' : ''}> ${_esc(m.nombre)}</label>`).join('')}</div>
             <button class="btn-primario btn-verde" id="pl_btn_${id}" onclick="guardarPlanUI('${id}')">Guardar ${_esc(p.nombre)}</button>
         </div>`;
@@ -1453,10 +1469,11 @@ async function abrirModalPlanCliente(prefijo) {
     document.getElementById('pcPrefijo').textContent = prefijo;
     const c = clientesCargados.find(x => x.prefijo === prefijo) || {};
     const sel = document.getElementById('pcPlan');
-    sel.innerHTML = (planesInfo.planes || []).filter(p => p.activo || p.codigo === c.plan)
+    sel.innerHTML = (planesInfo.planes || []).filter(p => (p.activo || p.codigo === c.plan) && (p.codigo !== 'PRUEBA' || c.plan === 'PRUEBA')) // V8: no se vuelve a PRUEBA
         .map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + (p.activo ? '' : ' (inactivo)') + '</option>').join('');
     document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Cargando…</div>';
     document.getElementById('pcPlanAyuda').textContent = planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).';
+    _renderPruebaCliente(c);
     document.getElementById('modalPlanCliente').classList.add('visible');
     await cargarModulosCliente();
 }
@@ -1509,7 +1526,12 @@ async function confirmarCambioPlan() {
         if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
         toast(res.mensaje, 'verde');
         await cargarModulosCliente();
-        cargarClientes();
+        await cargarClientes();
+        _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
+        if (res.aviso) { // V8: al salir de PRUEBA hay que renovar la vigencia del plan nuevo
+            alert('ℹ️ ' + res.aviso);
+            const pre = pcPrefijo; cerrarModalPlanCliente(); abrirModalVigencia(pre);
+        }
     } catch (e) { toast('Error de conexión', 'rojo'); }
     finally { btn.disabled = false; }
 }
@@ -1538,8 +1560,9 @@ async function toggleActivo(prefijo, estaActivo) {
 let vigenciaPrefijoActual = '';
 
 function abrirModalVigencia(prefijo) {
-    vigenciaPrefijoActual = prefijo;
     const c = clientesCargados.find(x => x.prefijo === prefijo);
+    if (c && c.plan === 'PRUEBA') { toast('La prueba gratuita no se renueva: pasá el negocio a Básico o Pro (🧩 Plan) y después renová.', 'rojo'); return; }
+    vigenciaPrefijoActual = prefijo;
     document.getElementById('vigenciaPrefijo').textContent = prefijo;
     document.getElementById('vigenciaFechaActual').textContent =
         (c && c.fechaVence) ? new Date(c.fechaVence).toLocaleDateString('es-AR') + (c.vigente ? ' (vigente)' : ' (vencida)') : 'sin vencimiento asignado';
@@ -1679,6 +1702,39 @@ window.addEventListener('popstate', function () {
 async function reabrirAltaPendiente() {
     if (!tokenAdmin || !_leerBorradorAlta()) return;
     if (planesInfo.existe && !document.querySelector('.modal-overlay.visible')) abrirModalAlta();
+}
+
+// ── V8: PRUEBA (7 + 3) — estado y regularización controlada ───────
+function _renderPruebaCliente(c) {
+    const box = document.getElementById('pcPrueba');
+    const pr = c && c.prueba;
+    if (!pr) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'block';
+    if (pr.regularizada) {
+        box.innerHTML = '<div class="ayuda" style="font-size:0.82rem;">🧪 Prueba del <b>' + _esc(pr.altaTxt) + '</b> al <b>' + _esc(pr.venceTxt) + '</b> · gracia hasta <b>' + _esc(pr.finGraciaTxt) +
+            '</b> · hoy: <b>' + _esc(pr.estado) + (pr.estado !== 'VENCIDA' ? ' (día ' + pr.dia + ')' : '') + '</b></div>';
+        return;
+    }
+    const p = pr.propuesta || {};
+    box.innerHTML = '<div class="caja-reg" style="background:#FFF8E1;border:1px solid #FFE082;border-radius:10px;padding:10px;font-size:0.82rem;color:#5D4037;">' +
+        '⚠️ <b>PRUEBA sin regularizar</b>: ' + _esc(pr.discrepancia) + '<br>' +
+        'Propuesta: alta <b>' + _esc(p.altaTxt) + '</b>' + (p.conservaAlta ? ' (la original)' : ' (hoy: no tenía alta válida)') + ', prueba hasta <b>' + _esc(p.venceTxt) +
+        '</b>, gracia hasta <b>' + _esc(p.finGraciaTxt) + '</b> → hoy quedaría <b>' + _esc(p.estado) + '</b>' +
+        (p.estado === 'VENCIDA' ? ' (no podrá vender; sus datos quedan para consultar)' : '') + '.<br>' +
+        '<button class="btn-accion" id="btnReg" style="margin-top:8px;background:#FB8C00;color:white;" onclick="pedirRegularizar()">Regularizar con esta propuesta</button>' +
+        '<div id="regConfirmar" style="display:none;margin-top:8px;"><b>¿Confirmás?</b> No se puede deshacer ni repetir. ' +
+        '<button class="btn-accion" style="background:#C62828;color:white;" onclick="regularizarPruebaUI()">Sí, regularizar</button> ' +
+        '<button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'regConfirmar\').style.display=\'none\'">No</button></div></div>';
+}
+function pedirRegularizar() { document.getElementById('regConfirmar').style.display = 'block'; } // confirmación propia, sin ventana nativa
+async function regularizarPruebaUI() {
+    try {
+        const res = await _adminApi('regularizarPrueba', { prefijo: pcPrefijo, confirmar: true });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+        toast(res.mensaje, res.estado === 'VENCIDA' ? 'rojo' : 'verde');
+        await cargarClientes();
+        _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
+    } catch (e) { toast('Error de conexión', 'rojo'); }
 }
 </script>
 </body>
