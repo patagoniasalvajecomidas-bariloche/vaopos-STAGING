@@ -1878,7 +1878,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🛒 POS · Copihue v507</title>
+    <title>🛒 POS · Copihue v517</title>
     <meta name="theme-color" content="#991b1b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2813,10 +2813,7 @@
     <link rel="prefetch" href="copihue-finanzas.html">
 </head>
 <body>
-    <div style="position:fixed;top:0;left:0;right:0;z-index:99999;background:repeating-linear-gradient(45deg,#000,#000 10px,#ffcc00 10px,#ffcc00 20px);color:#000;text-align:center;font-weight:900;font-size:0.85rem;padding:6px 8px;">
-        🚧 STAGING / MANTENIMIENTO — NO ES EL SITIO REAL 🚧
-    </div>
-    <div style="height:32px;"></div>
+    <div style="background:#ffcc00;border-bottom:3px solid #000;color:#000;text-align:center;font-weight:900;font-size:0.7rem;line-height:1.2;padding:3px 6px;">🚧 STAGING — NO ES EL SITIO REAL 🚧</div>
 
 <!-- v502 ETAPA 2: el botón «Pagos pendientes» se oculta en pantallas < 768 px (celular no cambia) -->
 <style>@media (max-width: 767px) { #btnPagosPendientes { display: none !important; } }
@@ -2891,6 +2888,7 @@
                     style="background:rgba(230,81,0,0.3);border-color:rgba(230,81,0,0.6);flex:1;text-align:center;position:relative;display:flex;align-items:center;justify-content:center;">
                 🧾<span id="badgeFiados" style="display:none;position:absolute;top:-4px;right:-4px;background:#e65100;color:white;border-radius:50%;min-width:16px;height:16px;font-size:0.6rem;font-weight:900;align-items:center;justify-content:center;line-height:1;padding:0 2px;"></span>
             </button>
+            <a href="copihue-tickets.html" class="btn-resumen" id="btnTicketsFiado" title="Tickets de FIADO (completar ticket)" style="background:rgba(0,150,136,0.3);border-color:rgba(0,150,136,0.6);flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;">🎫</a>
             <a href="copihue-finanzas.html" class="btn-resumen" title="Finanzas" style="background:rgba(0,200,83,0.3);border-color:rgba(0,200,83,0.6);flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;">💰</a>
             <button class="btn-resumen" onclick="abrirSalidaInterna()" title="Sacar del local" id="btnSalida"
                     style="background:rgba(96,125,139,0.3);border-color:rgba(96,125,139,0.6);flex:1;text-align:center;position:relative;display:flex;align-items:center;justify-content:center;">
@@ -6804,6 +6802,7 @@ async function confirmarVentaMixta() {
                 pendientes.push({ items: ventaData, metodoPago: metodoPagoTexto, vendedor: vendedorActual, idVenta, ts: Date.now() });
                 localStorage.setItem('ventas_pendientes', JSON.stringify(pendientes));
                 _actualizarBadgePendientes();
+                _autoProgramar(); // v510
                 // v19/09/2026 — reintento automático DESACTIVADO (ver changelog):
                 // generaba cuello de botella / sensación de "sistema tomado" con
                 // conexión floja, compitiendo por conexión con una venta nueva
@@ -6977,6 +6976,7 @@ async function confirmarVenta() {
         pendientes.push(ventaPendiente);
         localStorage.setItem('ventas_pendientes', JSON.stringify(pendientes));
         _actualizarBadgePendientes();
+        _autoProgramar(); // v510
         console.warn('⚠️ Venta encolada para reintento:', ventaPendiente);
         // v19/09/2026 — reintento automático desactivado, ver nota arriba.
         // setTimeout(() => _reenviarVentasPendientes(), 10000);
@@ -7793,6 +7793,108 @@ function _pgpEvaluarFiado(f) {
     return { nivel: 'bad', titulo: 'Requiere revisión: más de una fila en FIADOS', det: ['Hay más de una fila con ese idFiado. Revisión manual.'] };
 }
 
+// ===== v510 — AUTO-CONFIRMACIÓN de ventas pendientes (SOLO LECTURA) =====
+// Cuando `vender` no responde a tiempo, la venta suele estar registrada igual
+// en la planilla. Esto consulta (consultarEstadoOperacion, solo lectura) y, si
+// el servidor confirma EXACTAMENTE esa venta (mismo idVenta, una fila TOTAL,
+// mismas filas/unidades/total, sin avisos), limpia el pendiente y la
+// advertencia "Stock por verificar" de ESTE dispositivo.
+// NUNCA reenvía la venta ni escribe en la planilla.
+const _AUTO = { ocupado: false, intentos: {} };
+const _AUTO_MAX_INTENTOS = 6; // por venta y por sesión de la página
+
+function _autoMarcarStockLocal(idVenta) {
+    try {
+        const k = getHoyKey();
+        const arr = JSON.parse(localStorage.getItem(k) || '[]');
+        let ch = false;
+        arr.forEach(v => { if (v && v.idVenta === idVenta && !v.stockRebajado) { v.stockRebajado = true; ch = true; } });
+        if (ch) localStorage.setItem(k, JSON.stringify(arr));
+    } catch (e) {}
+}
+
+function _autoQuitarPendiente(idVenta, conFiado) {
+    try {
+        const fresca = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+        const resto = fresca.filter(v => !(v && v.idVenta === idVenta && v.tipo !== 'fiadoPendiente' && (conFiado || !v.idFiado)));
+        if (resto.length !== fresca.length) localStorage.setItem('ventas_pendientes', JSON.stringify(resto));
+    } catch (e) {}
+}
+
+async function _autoVerificarVenta(cls, entrada) {
+    try {
+        const datos = { idVenta: cls.idVenta };
+        if (cls.idFiado) datos.idFiado = cls.idFiado;
+        const url = API_URL + '?action=consultarEstadoOperacion&data=' + encodeURIComponent(JSON.stringify(datos));
+        let resp = await _apiFetchUrl('consultarEstadoOperacion', url);
+        let val = _pgpValidarRespuesta(resp, cls.idVenta, cls.idFiado || '');
+        if (!val.ok) return false;
+        if (resp.venta.estado !== 'REGISTRADA') return false;
+        const _loc = _pgpCalcLocal(entrada.items);
+        let ev = _pgpEvaluarVenta(_loc, resp.venta);
+        // v515 — SOLO FIADO: el aviso EN_MAPA_PERO_NO_EN_PROCESADAS (venta vieja que el servidor ya no
+        // recuerda) es el ÚNICO aviso tolerado, y solo si sin él la venta daría 'ok' (filas, unidades y
+        // total coinciden). Cualquier otro aviso o diferencia sigue bloqueando. Después, más abajo, el
+        // FIADO debe existir con el MISMO ticket que la venta (coherencia OK) o no se quita nada.
+        if (ev.nivel !== 'ok' && cls.idFiado && Array.isArray(resp.venta.advertencias) &&
+            resp.venta.advertencias.length > 0 &&
+            resp.venta.advertencias.every(a => typeof a === 'string' && a.indexOf('EN_MAPA_PERO_NO_EN_PROCESADAS') === 0)) {
+            ev = _pgpEvaluarVenta(_loc, Object.assign({}, resp.venta, { advertencias: [] }));
+        }
+        if (ev.nivel !== 'ok') return false;
+        if (cls.idFiado) {   // v512: FIADO SOLO — también el FIADO con ticket y el MISMO ticket que la venta
+            // v514 — ETAPA 2: venta REGISTRADA y verificada (ev ok) + FIADO existente SIN ticket →
+            // se completa la columna C con el ticket de ESA venta (actualizarTicketFiado solo escribe
+            // si C está vacía) y se vuelve a consultar: solo cuenta como resuelto si ahora coincide (OK).
+            if (resp.fiado && resp.fiado.estado === 'EXISTE_SIN_TICKET' &&
+                resp.coherencia && resp.coherencia.estado === 'VENTA_REGISTRADA_CON_TICKET_Y_FIADO_SIN_TICKET' &&
+                String(resp.coherencia.ticketVenta) === String(resp.venta.ticket) &&
+                String(resp.venta.ticket || '').trim() !== '') {
+                const urlTF = API_URL + '?action=actualizarTicketFiado&data=' +
+                    encodeURIComponent(JSON.stringify({ idFiado: cls.idFiado, ticket: String(resp.venta.ticket) }));
+                const rTF = await _apiFetchUrl('actualizarTicketFiado', urlTF);
+                if (!rTF || rTF.success !== true) return false;
+                resp = await _apiFetchUrl('consultarEstadoOperacion', url);
+                val = _pgpValidarRespuesta(resp, cls.idVenta, cls.idFiado);
+                if (!val.ok || resp.venta.estado !== 'REGISTRADA') return false;
+            }
+            if (_pgpEvaluarFiado(resp.fiado).nivel !== 'ok') return false;
+            if (!resp.coherencia || resp.coherencia.estado !== 'OK') return false;
+        }
+        return true;
+    } catch (e) { return false; }
+}
+
+async function _autoConfirmarPendientes() {
+    if (_AUTO.ocupado) return;
+    _AUTO.ocupado = true;
+    let cambio = false;
+    try {
+        const lista = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+        for (const entrada of lista) {
+            const cls = _pgpClasificar(entrada);
+            if (cls.tipo !== 'VENTA' && cls.tipo !== 'VENTA_MIXTA' && cls.tipo !== 'VENTA_FIADO_SOLO') continue;
+            _AUTO.intentos[cls.idVenta] = (_AUTO.intentos[cls.idVenta] || 0) + 1;
+            if (_AUTO.intentos[cls.idVenta] > _AUTO_MAX_INTENTOS) continue;
+            if (!(await _autoVerificarVenta(cls, entrada))) continue;
+            _autoMarcarStockLocal(cls.idVenta);
+            // v512: la venta de FIADO SOLO sale de la cola solo si venta + FIADO + ticket coinciden (ver _autoVerificarVenta).
+            _autoQuitarPendiente(cls.idVenta, cls.tipo === 'VENTA_FIADO_SOLO');
+            cambio = true;
+        }
+    } catch (e) { console.warn('⚠️ Auto-confirmación de pendientes:', e); }
+    finally { _AUTO.ocupado = false; }
+    if (cambio) {
+        try { _actualizarBadgePendientes(); } catch (e) {}
+        try { if (document.getElementById('pgpOverlay')) { _pgpActualizarContador(); _pgpDibujar(); } } catch (e) {}
+    }
+}
+
+// Tras encolar una venta: consulta a los 40 s, 2 min y 5 min (da tiempo al servidor lento).
+function _autoProgramar() {
+    [40000, 120000, 300000].forEach(ms => setTimeout(_autoConfirmarPendientes, ms));
+}
+
 // Consulta de SOLO LECTURA. Usa únicamente la acción consultarEstadoOperacion.
 // El resultado queda en memoria (_PGP.resultados), nunca en el navegador.
 async function _pgpConsultar(cls, entrada, huella) {
@@ -7820,6 +7922,10 @@ async function _pgpConsultar(cls, entrada, huella) {
                 else if (c.estado === 'OK') out.coherencia = 'La venta y el FIADO tienen el mismo ticket (' + c.ticketVenta + ').';
                 else if (c.estado === 'TICKET_DISTINTO') out.coherencia = 'Requiere revisión: ticket de la venta (' + c.ticketVenta + ') distinto al del FIADO (' + c.ticketFiado + ').';
                 else out.coherencia = 'Cruce venta/FIADO: sin datos suficientes para concluir.';
+            }
+            if (cls.idVenta && (cls.tipo === 'VENTA' || cls.tipo === 'VENTA_MIXTA' || cls.tipo === 'VENTA_FIADO_SOLO')) {
+                out.verde = out.venta.nivel === 'ok' && resp.venta.estado === 'REGISTRADA' &&
+                    (cls.tipo !== 'VENTA_FIADO_SOLO' || (out.fiado && out.fiado.nivel === 'ok' && resp.coherencia && resp.coherencia.estado === 'OK'));
             }
             res = out;
         }
@@ -7901,7 +8007,12 @@ function _pgpHtmlTarjeta(i, entrada, cls, rel) {
             if (r.fiado) h += _pgpBloqueVeredicto('FIADO (hoja FIADOS)', r.fiado);
             if (r.coherencia) h += '<div style="margin-top:6px;font-size:0.78rem;color:#444;">' + _pgpEsc(r.coherencia) + '</div>';
         }
-        h += '<div style="margin-top:8px;font-size:0.78rem;font-weight:700;color:#b71c1c;">' + _PGP_NO_HACER + '</div>';
+        if (r && r.verificado && r.verde) {
+            h += '<div style="margin-top:8px;font-size:0.8rem;font-weight:700;color:#2e7d32;">✅ Verificado en la planilla: ya está registrado. No hay que hacer nada más; podés quitarlo de esta lista.</div>';
+            h += '<div style="margin-top:8px;"><button data-pgp-quitar="' + _pgpEsc(cls.idVenta) + '" data-pgp-quitar-fiado="' + (cls.tipo === 'VENTA_FIADO_SOLO' ? '1' : '') + '" style="padding:8px 12px;border-radius:8px;border:none;background:#2e7d32;color:white;font-weight:700;cursor:pointer;">🧹 Quitar de pendientes</button></div>';
+        } else {
+            h += '<div style="margin-top:8px;font-size:0.78rem;font-weight:700;color:#b71c1c;">' + _PGP_NO_HACER + '</div>';
+        }
         h += '<div style="margin-top:8px;"><button data-pgp-consultar="' + i + '" style="padding:8px 12px;border-radius:8px;border:1px solid #1565c0;background:white;color:#1565c0;font-weight:700;cursor:pointer;">🔎 Consultar en la planilla</button></div>';
     }
     h += '</div>';
@@ -8077,18 +8188,19 @@ function _pgpDibujar() {
          '<div style="font-weight:900;font-size:1.1rem;color:#222;">Pagos pendientes (' + (s.total === null ? '?' : s.total) + ')</div>' +
          '<button id="pgpCerrar" style="padding:8px 14px;border-radius:8px;border:none;background:#424242;color:white;font-weight:700;cursor:pointer;">Cerrar</button></div>';
     h += '<div style="margin-top:8px;padding:8px 10px;background:#e3f2fd;border-radius:8px;font-size:0.8rem;color:#0d47a1;">' +
-         '<b>Solo consulta.</b> Este panel no reenvía, no cancela, no borra ni repara nada. Los pendientes son del navegador donde se crearon: acá solo ves los de este dispositivo.</div>';
+         '<b>Solo consulta.</b> Este panel no reenvía, no cancela ni repara nada; solo ofrece «Quitar de pendientes» cuando la planilla ya confirmó la operación. Los pendientes son del navegador donde se crearon: acá solo ves los de este dispositivo.</div>';
     {
         const nNuevas = s.sinCompletar.filter(x => x.op).length;
         const nRevisar = s.sinCompletar.filter(x => !x.op).length;
         h += '<div style="margin-top:6px;font-size:0.78rem;color:#444;">' + (s.total === null ? '<b>No se pudo calcular el total: falló una lectura.</b> ' : '') +
              'Desglose: <b>' + (s.nViejos === null ? '?' : s.nViejos) + '</b> pendientes antiguos · <b>' + (s.o.ok ? nNuevas : '?') + '</b> operaciones nuevas sin completar · <b>' + (s.o.ok ? nRevisar : '?') + '</b> registros a revisar.</div>';
     }
+    h += _fiadoOrigenHtml();
     const idsViejos = new Set();
     clasif.forEach(c => { if (c.idVenta) idsViejos.add(c.idVenta); if (c.idFiado) idsViejos.add(c.idFiado); });
     const hayOpsConsultables = s.sinCompletar.some(x => x.op);
     if ((r.ok && lista.length) || hayOpsConsultables) {
-        h += '<div style="margin:10px 0;"><button id="pgpTodos" style="padding:8px 12px;border-radius:8px;border:none;background:#1565c0;color:white;font-weight:700;cursor:pointer;">🔎 Consultar todos</button></div>';
+        h += '<div style="margin:10px 0;"><button id="pgpTodos" style="padding:8px 12px;border-radius:8px;border:none;background:#1565c0;color:white;font-weight:700;cursor:pointer;"' + (_PGP.progreso ? ' disabled' : '') + '>' + (_PGP.progreso || '🔎 Consultar todos') + '</button></div>';
     }
     h += _pgpHtmlSeccionOps(s, idsViejos);
     const hayOps = !(s.o.ok && !s.o.items.length);
@@ -8119,6 +8231,8 @@ function _pgpDibujar() {
             for (let i = 0; i < l2.length; i++) {
                 const c = _pgpClasificar(l2[i]);
                 if (c.tipo === 'DESCONOCIDO') continue;
+                _PGP.progreso = '⏳ Consultando ' + (i + 1) + ' de ' + l2.length + '… (puede tardar, no cierres)';
+                _pgpDibujar();
                 await _pgpConsultar(c, l2[i]);
                 if (!document.getElementById('pgpOverlay')) return;
                 _pgpDibujar();
@@ -8129,7 +8243,7 @@ function _pgpDibujar() {
                 if (!document.getElementById('pgpOverlay')) return;
                 _pgpDibujar();
             }
-        } catch (e) {} finally { _PGP.ocupado = false; }
+        } catch (e) {} finally { _PGP.ocupado = false; _PGP.progreso = ''; if (document.getElementById('pgpOverlay')) _pgpDibujar(); }
     };
     overlay.querySelectorAll('[data-pgp-consultar-op]').forEach(b => {
         b.onclick = async () => {
@@ -8146,6 +8260,22 @@ function _pgpDibujar() {
                 _PGP.ocupado = false;
                 if (document.getElementById('pgpOverlay')) _pgpDibujar();
             }
+        };
+    });
+    overlay.querySelectorAll('[data-pgp-quitar]').forEach(b => {
+        b.onclick = () => {
+            try {
+                const id = b.getAttribute('data-pgp-quitar');
+                const conFiado = !!b.getAttribute('data-pgp-quitar-fiado');
+                const r = _PGP.resultados[id];
+                if (!(r && r.verificado && r.verde)) return;       // solo si la última consulta fue toda verde
+                _autoMarcarStockLocal(id);
+                _autoQuitarPendiente(id, conFiado);
+                delete _PGP.resultados[id];
+                try { _actualizarBadgePendientes(); } catch (e) {}
+                _pgpActualizarContador();
+            } catch (e) { console.warn('Quitar pendiente:', e); }
+            if (document.getElementById('pgpOverlay')) _pgpDibujar();
         };
     });
     overlay.querySelectorAll('[data-pgp-consultar]').forEach(b => {
@@ -10756,6 +10886,12 @@ _cargarHorarioSistema();
 // activo (solo muestra el aviso, no dispara red) para que el cajero vea que
 // hay algo pendiente y lo reconcilie a mano si hace falta.
 _actualizarBadgePendientes();
+// v510 — al abrir: confirmar en segundo plano (solo lectura) lo que ya esté en la planilla.
+setTimeout(_autoConfirmarPendientes, 8000);
+setTimeout(() => _salColaProcesar(), 10000);   // v511: salidas por confirmar
+setInterval(() => _salColaProcesar(), 600000);
+window.addEventListener('online', () => { _salFallos = 0; _salColaProcesar(); });
+setInterval(_autoConfirmarPendientes, 600000);
 // setTimeout(() => { _reenviarVentasPendientes(); _actualizarBadgePendientes(); }, 5000);
 // ========== SISTEMA DE CLIENTES ==========
 const CLIENTES_KEY = 'copihue_clientes';
@@ -15455,10 +15591,16 @@ async function confirmarSalidaInterna() {
     }
 
     const btn = document.querySelector('#modalSalidaInterna button[onclick="confirmarSalidaInterna()"]');
+    if (btn && btn.disabled) return;   // v511: doble toque
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Registrando...'; }
 
-    try {
-        const datos = {
+    // v511 — la operación se arma una vez; si no hay respuesta queda en una cola
+    // (con su MISMO idOperacion) y se reenvía sola: el servidor la reconoce
+    // (yaExistia) y no descuenta el stock de nuevo.
+    const op = {
+        id: _idOperacionSalidaActual, ts: Date.now(),
+        idProducto: _salidaProducto.id, nombre: _salidaProducto.name, cantidad, motivo: _salidaMotivo, obs,
+        datos: {
             id:        _salidaProducto.id,
             nombre:    _salidaProducto.name,
             cantidad,
@@ -15468,33 +15610,113 @@ async function confirmarSalidaInterna() {
             precio:    _salidaProducto.price,
             vendedor:  vendedorActual || '',
             idOperacion: _idOperacionSalidaActual
-        };
-        const url = API_URL + '?action=salidaInterna&data=' + encodeURIComponent(JSON.stringify(datos));
-        const resp = await _apiFetchUrl('salidaInterna', url);
-
-        if (resp.success) {
-            // Guardar en historial local
-            const ahora = new Date();
-            const hora  = ahora.getHours().toString().padStart(2,'0') + ':' + ahora.getMinutes().toString().padStart(2,'0');
-            _guardarSalidaLocal({ ts: ahora.getTime(), nombre: _salidaProducto.name, cantidad, motivo: _salidaMotivo, obs, hora });
-            // Actualizar stock local
-            _salidaProducto.stock = Math.max(0, _salidaProducto.stock - cantidad);
-            mostrarToast(resp.yaExistia ? '✅ Esta salida ya se había registrado antes' : `✅ Salida registrada — ${_salidaProducto.name} x${cantidad} (${_salidaMotivo})`, 'verde');
-            _idOperacionSalidaActual = null; // confirmado — la próxima salida es una nueva
-            _cargarYRenderSalidaHistorial();
-            cerrarSalidaInterna();
-            renderResultados(_sortProductos(productos, new Set(ventaActual.map(i => i.esPeso ? i.idOriginal : i.id))));
-        } else {
-            mostrarToast('❌ ' + (resp.mensaje || 'Error al registrar'), 'rojo');
-            if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar salida'; }
         }
-    } catch(e) {
-        mostrarToast('❌ Error de conexión', 'rojo');
-    } finally {
+    };
+
+    // Se guarda en la cola ANTES de enviar: si se cierra la página a mitad, se reenvía igual (mismo id).
+    _salColaAgregar(op);
+    let r;
+    try { r = await _salEnviar(op); }
+    finally {
         // Siempre rehabilitar el botón — evita que quede trabado
         if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '✅ Confirmar salida'; }
     }
+
+    if (r.tipo === 'ok') {
+        _salColaQuitar(op.id);
+        const ahora = new Date();
+        const hora  = ahora.getHours().toString().padStart(2,'0') + ':' + ahora.getMinutes().toString().padStart(2,'0');
+        _guardarSalidaLocal({ ts: ahora.getTime(), nombre: op.nombre, cantidad, motivo: op.motivo, obs, hora });
+        _salidaProducto.stock = Math.max(0, _salidaProducto.stock - cantidad);
+        mostrarToast(r.resp.yaExistia ? '✅ Esta salida ya se había registrado antes' : `✅ Salida registrada — ${op.nombre} x${cantidad} (${op.motivo})`, 'verde');
+        _idOperacionSalidaActual = null; // confirmado — la próxima salida es una nueva
+        _cargarYRenderSalidaHistorial();
+        cerrarSalidaInterna();
+        renderResultados(_sortProductos(productos, new Set(ventaActual.map(i => i.esPeso ? i.idOriginal : i.id))));
+    } else if (r.tipo === 'negocio') {
+        _salColaQuitar(op.id);
+        mostrarToast('❌ ' + ((r.resp && r.resp.mensaje) || 'Error al registrar'), 'rojo');
+    } else {
+        // Sin respuesta / sin red / servidor ocupado: la salida puede haberse registrado igual.
+        // Queda en cola con su id y se confirma sola; se vuelve al catálogo como siempre.
+        _salAjustarStockLocal(op.idProducto, -cantidad);   // para no ofrecer de nuevo ese stock
+        _idOperacionSalidaActual = null;                   // la cola conserva el id de ESTA operación
+        mostrarToast('⏳ Salida enviada — se confirma sola', 'naranja');
+        cerrarSalidaInterna();
+        renderResultados(_sortProductos(productos, new Set(ventaActual.map(i => i.esPeso ? i.idOriginal : i.id))));
+        _salColaProgramar();
+    }
 }
+
+// ── v511: COLA DE SALIDAS POR CONFIRMAR ─────────────────────────────────────
+// Se borra de la cola SOLO cuando el servidor confirma (success:true, incluido
+// "yaExistia") o la rechaza por un motivo de negocio (no se reintenta).
+const _SAL_COLA_KEY = 'salidas_pendientes_v1';
+let _salColaMem = null, _salEnVuelo = new Set(), _salOcupada = false, _salTimer = null, _salFallos = 0;
+
+function _salColaLeer() {
+    try { const a = JSON.parse(localStorage.getItem(_SAL_COLA_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (e) { return _salColaMem ? _salColaMem.slice() : []; }
+}
+function _salColaEscribir(a) { _salColaMem = a.slice(); try { localStorage.setItem(_SAL_COLA_KEY, JSON.stringify(a)); } catch (e) {} }
+function _salColaAgregar(op) { const a = _salColaLeer(); a.push(op); _salColaEscribir(a); }
+function _salColaQuitar(id) { _salColaEscribir(_salColaLeer().filter(o => o.id !== id)); }
+
+function _salAjustarStockLocal(idProducto, delta) {
+    try {
+        const p = productos.find(pr => pr.id === idProducto);
+        if (p) p.stock = Math.max(0, (Number(p.stock) || 0) + delta);
+    } catch (e) {}
+}
+
+// Devuelve {tipo:'ok'|'negocio'|'red', resp?}
+async function _salEnviar(op) {
+    _salEnVuelo.add(op.id);
+    try {
+        const url = API_URL + '?action=salidaInterna&data=' + encodeURIComponent(JSON.stringify(op.datos));
+        const resp = await _apiFetchUrl('salidaInterna', url);
+        if (resp && resp.success === true) return { tipo: 'ok', resp };
+        const m = String((resp && resp.mensaje) || '');
+        if (/procesando otra salida|intent[aá] de nuevo|ocupad/i.test(m)) return { tipo: 'red', resp };
+        return { tipo: 'negocio', resp: resp || {} };
+    } catch (e) {
+        return { tipo: 'red', error: e };
+    } finally { _salEnVuelo.delete(op.id); }
+}
+
+async function _salColaProcesar() {
+    if (_salOcupada) return;
+    _salOcupada = true;
+    let hubo = 0, huboRed = false, rechazadas = [];
+    try {
+        for (const op of _salColaLeer()) {
+            if (_salEnVuelo.has(op.id)) continue;
+            const r = await _salEnviar(op);
+            if (r.tipo === 'ok') {
+                _salColaQuitar(op.id); hubo++;
+                const ahora = new Date();
+                const hora  = ahora.getHours().toString().padStart(2,'0') + ':' + ahora.getMinutes().toString().padStart(2,'0');
+                _guardarSalidaLocal({ ts: ahora.getTime(), nombre: op.nombre, cantidad: op.cantidad, motivo: op.motivo, obs: op.obs, hora });
+            } else if (r.tipo === 'negocio') {
+                _salColaQuitar(op.id);
+                _salAjustarStockLocal(op.idProducto, +op.cantidad);   // se había descontado en pantalla: se revierte
+                rechazadas.push(op.nombre + ': ' + ((r.resp && r.resp.mensaje) || 'no aceptada'));
+            } else { huboRed = true; break; }
+        }
+    } catch (e) { console.warn('Cola de salidas:', e); }
+    finally { _salOcupada = false; }
+    try { renderResultados(_sortProductos(productos, new Set(ventaActual.map(i => i.esPeso ? i.idOriginal : i.id)))); } catch (e) {}
+    if (rechazadas.length) mostrarToast('❌ Salida NO registrada — ' + rechazadas.join(' · '), 'rojo');
+    else if (hubo && !_salColaLeer().length) mostrarToast('✅ Salida confirmada', 'verde');
+    if (huboRed) { _salFallos++; _salColaProgramar([20000, 60000, 180000, 600000][Math.min(_salFallos - 1, 3)]); }
+    else { _salFallos = 0; }
+}
+function _salColaProgramar(ms) {
+    clearTimeout(_salTimer);
+    if (!_salColaLeer().length) return;
+    _salTimer = setTimeout(_salColaProcesar, ms || 20000);
+}
+
 // ============================================
 
 function cerrarModalFiado() {
@@ -15862,6 +16084,27 @@ async function _confirmarFiadoSinTel() {
     }
 }
 
+// v517 — RASTRO DEL TICKET DEL FIADO: solo informativo, local a este navegador (no va a la planilla ni cambia ninguna decisión).
+const _FIADO_ORIGEN_KEY = 'fiado_ticket_origen_v1';
+function _fiadoOrigenAnotar(idFiado, cliente, ticket, origen) {
+    try {
+        const arr = JSON.parse(localStorage.getItem(_FIADO_ORIGEN_KEY) || '[]');
+        arr.push({ idFiado: idFiado, cliente: cliente || '', ticket: ticket || '', origen: origen, ts: Date.now() });
+        localStorage.setItem(_FIADO_ORIGEN_KEY, JSON.stringify(arr.slice(-20)));
+    } catch (e) {}
+    try { console.info('🎫 Ticket fiado', idFiado, '→', ticket || '(sin ticket)', '· origen:', origen); } catch (e) {}
+}
+function _fiadoOrigenHtml() {
+    try {
+        const arr = JSON.parse(localStorage.getItem(_FIADO_ORIGEN_KEY) || '[]').slice(-3).reverse();
+        if (!arr.length) return '';
+        const esc = x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        return '<div style="margin-top:8px;padding:8px 10px;background:#fff8e1;border-radius:8px;font-size:0.76rem;color:#5d4037;">' +
+            '<b>Últimos fiados (de dónde salió el ticket del comprobante):</b>' +
+            arr.map(x => '<div>' + esc(new Date(x.ts).toLocaleString('es-AR')) + ' · ' + esc(x.cliente || x.idFiado) + ' · ticket <b>' + esc(x.ticket || '—') + '</b> · ' + esc(x.origen) + '</div>').join('') + '</div>';
+    } catch (e) { return ''; }
+}
+
 async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     // itemsSnapshot viene desde confirmarFiado — capturado antes de cerrar modal
     const totalOriginal = _totalCarritoConDescuentosGrupales(itemsSnapshot);
@@ -15878,6 +16121,8 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
 
     let stockOk = false;
     let ticketNum = null;
+    let _fiadoEncolado = false; // v513: evita encolar dos veces
+    let _fiadoRespuestaFallida = false; // v513: el servidor contestó pero NO registró (ej. «Local ocupado»)
     // idVenta único para deduplicación en GAS — evita doble registro si hay reintento
     const idVentaFiado = datosFiado.idFiado + '_v';
 
@@ -15899,6 +16144,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
         const resp = await _apiFetchUrl('vender', url);
         stockOk = resp.success === true;
         ticketNum = resp.ticket || resp.numeroTicket || null;
+        if (!stockOk) _fiadoRespuestaFallida = true;
     } catch(e) {
         console.warn('⚠️ Error venta fiado (se reintentará):', e);
         // Encolar reintento con mismo idVenta para no duplicar
@@ -15916,13 +16162,75 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
                 idVenta: idVentaFiado, idFiado: datosFiado.idFiado, ts: Date.now()
             });
             localStorage.setItem('ventas_pendientes', JSON.stringify(pendientes));
+            _fiadoEncolado = true;
             _actualizarBadgePendientes();
+            _autoProgramar(); // v510
             // v19/09/2026 — reintento automático desactivado, ver nota arriba.
             // setTimeout(() => _reenviarVentasPendientes(), 10000);
         } catch(e2) { console.warn('⚠️ No se pudo encolar fiado:', e2); }
     }
 
+    // v513 — HUECO CORREGIDO: si `vender` contesta success:false (ej. «Local ocupado procesando
+    // otra venta») NO hay excepción, y antes la venta quedaba sin registrar y SIN pendiente.
+    // Ahora se encola igual que en un error de red (mismo idVenta + idFiado). El servidor
+    // deduplica por idVenta; el control de pendientes la vigila. Sin reintento automático
+    // (sigue desactivado desde el 19/09/2026).
+    if (!stockOk && !_fiadoEncolado) {
+        try {
+            const ventaDataQ = itemsSnapshot.map(i => ({
+                id: i.esPeso ? i.idOriginal : i.id,
+                name: i.name, qty: i.qty,
+                esPeso: i.esPeso || false, gramos: i.gramos || 0,
+                precioVenta: i.price, precioModificado: i.precioModificado || false,
+                precioOriginal: i.precioOriginal || 0
+            }));
+            const pendientesQ = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
+            if (!pendientesQ.some(x => x && x.idVenta === idVentaFiado)) {
+                pendientesQ.push({
+                    items: ventaDataQ, metodoPago: 'FIADO', vendedor: vendedorActual,
+                    idVenta: idVentaFiado, idFiado: datosFiado.idFiado, ts: Date.now()
+                });
+                localStorage.setItem('ventas_pendientes', JSON.stringify(pendientesQ));
+            }
+            _fiadoEncolado = true;
+            _actualizarBadgePendientes();
+            _autoProgramar();
+        } catch (eQ) { console.warn('⚠️ No se pudo encolar fiado (respuesta fallida):', eQ); }
+    }
+
+    // v516 — TICKET DEL COMPROBANTE: si `vender` NO devolvió ticket (timeout/red) y NO hubo un rechazo
+    // explícito del servidor («ocupado»), la venta suele estar registrada igual en Ventas. Se consulta
+    // (SOLO LECTURA, consultarEstadoOperacion por idVenta) hasta 3 veces, esperando entre intentos.
+    // Se usa ese ticket SOLO si la planilla confirma ESA venta: mismo idVenta, una fila TOTAL y
+    // filas/unidades/total iguales a lo cobrado (mismos validadores que el panel de pendientes).
+    // Si no se confirma, todo sigue como antes (ticket vacío; v514 lo completa después).
+    let _ticketOrigen = ticketNum ? 'respuesta directa de vender' : 'sin ticket';
+    if (!ticketNum && !_fiadoRespuestaFallida) {
+        try {
+            const _btnT = document.getElementById('btnOkConfirm');
+            if (_btnT) _btnT.textContent = '⏳ Buscando ticket...';
+            const _espera = (typeof window._FIADO_ESPERA_TICKET_MS === 'number') ? window._FIADO_ESPERA_TICKET_MS : 4000;
+            const _locT = _pgpCalcLocal(itemsSnapshot.map(i => ({ qty: i.qty, esPeso: i.esPeso || false, precioVenta: i.price })));
+            const _t0 = Date.now();
+            for (let _n = 0; _n < 3 && !ticketNum; _n++) {
+                await new Promise(r => setTimeout(r, _espera));
+                if (Date.now() - _t0 > 40000) break;
+                try {
+                    const _urlT = API_URL + '?action=consultarEstadoOperacion&data=' + encodeURIComponent(JSON.stringify({ idVenta: idVentaFiado }));
+                    const _rT = await _apiFetchUrl('consultarEstadoOperacion', _urlT);
+                    const _vT = _pgpValidarRespuesta(_rT, idVentaFiado, '');
+                    if (_vT.ok && _rT.venta.estado === 'REGISTRADA' && _pgpEvaluarVenta(_locT, _rT.venta).nivel === 'ok') {
+                        ticketNum = String(_rT.venta.ticket);
+                        _ticketOrigen = 'planilla Ventas (búsqueda v516)';
+                        stockOk = true;   // la planilla confirmó la venta: ya está registrada y con stock descontado
+                    }
+                } catch (_eT) { /* se reintenta; si no, sigue sin ticket como antes */ }
+            }
+        } catch (_eB) { console.warn('⚠️ Búsqueda de ticket fiado:', _eB); }
+    }
+
     datosFiado.ticket = ticketNum;
+    _fiadoOrigenAnotar(datosFiado.idFiado, datosFiado.cliente, ticketNum, _ticketOrigen);
 
     // 2. Guardar en hoja FIADOS (con o sin ticket — si no hay ticket se actualiza después)
     try {
@@ -15942,7 +16250,11 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     });
 
     // 5. Toast, cierre de modales y limpieza
-    mostrarToast(`✅ Fiado de ${datosFiado.cliente} registrado — $${Math.round(total).toLocaleString('es-AR')}`, 'naranja');
+    if (stockOk) {
+        mostrarToast(`✅ Fiado de ${datosFiado.cliente} registrado — $${Math.round(total).toLocaleString('es-AR')}`, 'naranja');
+    } else {
+        mostrarToast(`⚠️ Fiado de ${datosFiado.cliente} guardado — $${Math.round(total).toLocaleString('es-AR')}. La VENTA quedó por confirmar (ver «Pagos pendientes»)`, 'naranja');
+    }
     seleccionarMetodo('efectivo');
     actualizarRanking();
     renderVenta();
