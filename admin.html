@@ -409,6 +409,20 @@ body {
 .modulo-estado { display:block; font-size:0.72rem; color:var(--gris); }
 .modulo-fila input[type=checkbox], .plan-mods input[type=checkbox], .chk input { width:20px; height:20px; accent-color:var(--azul); }
 .plan-card { border:2px solid var(--borde); border-radius:14px; padding:14px; margin-bottom:12px; }
+/* V11: pruebas y registros */
+.rg-cifras { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin-bottom:12px; }
+.rg-cifra { background:#F3F7FC; border-radius:12px; padding:10px; }
+.rg-cifra b { display:block; font-size:1.45rem; color:#0D47A1; line-height:1.1; }
+.rg-cifra span { font-size:0.78rem; color:#555; }
+.rg-cifra.alerta { background:#FFF4E5; } .rg-cifra.alerta b { color:#B25E00; }
+.rg-filtros { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 8px; }
+.rg-filtros button { border:2px solid var(--borde); background:#fff; border-radius:999px; padding:5px 12px; font-weight:700; cursor:pointer; font-family:inherit; font-size:0.82rem; }
+.rg-filtros button.activo { background:#0D47A1; color:#fff; border-color:#0D47A1; }
+.rg-sol { border:1px solid var(--borde); border-radius:12px; padding:10px 12px; margin-bottom:8px; font-size:0.84rem; }
+.rg-sol .est { font-weight:800; border-radius:6px; padding:1px 7px; font-size:0.75rem; }
+.est-ACTIVADA { background:#E8F5E9; color:#2E7D32; } .est-LISTA_ESPERA { background:#FFF4E5; color:#B25E00; } .est-ERROR, .est-CREANDO { background:#FDECEA; color:#C62828; }
+.est-DUPLICADO { background:#FCE4EC; color:#AD1457; } .est-CODIGO_ENVIADO, .est-HABILITADA { background:#E3F2FD; color:#0D47A1; } .est-RECHAZADA { background:#ECEFF1; color:#455A64; }
+.rg-conf { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
 .plan-card h4 { margin:0 0 10px; font-size:0.95rem; color:var(--azul-dark); }
 .plan-mods { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin:8px 0 12px; font-size:0.82rem; }
 .plan-mods label, .chk { display:flex; align-items:center; gap:6px; font-size:0.84rem; }
@@ -706,6 +720,7 @@ body {
             <div class="seccion-header">
                 <div class="seccion-titulo">Clientes</div>
                 <div class="botones-seccion">
+                    <button class="btn-primario" style="background:#0D47A1;" onclick="abrirModalRegistros()">🚀 Pruebas y registros <span id="badgeRegistros" style="display:none;background:#FFB300;color:#222;border-radius:999px;padding:1px 8px;margin-left:4px;font-size:0.78rem;"></span></button>
                     <button class="btn-primario" style="background:#5E35B1;" onclick="abrirModalPlanes()">🧩 Planes</button>
                     <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
                         ＋ Nuevo cliente
@@ -862,11 +877,23 @@ body {
     </div>
 </div>
 
+<!-- V11: Pruebas y registros (altas automáticas desde planes.html) -->
+<div class="modal-overlay" id="modalRegistros">
+    <div class="modal" style="max-width:760px;">
+        <div class="modal-titulo">🚀 Pruebas y registros</div>
+        <div id="registrosContenido"><div class="ayuda">Cargando…</div></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cargarRegistros()">Actualizar</button>
+            <button class="btn-cancelar" onclick="cerrarModalRegistros()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -993,6 +1020,7 @@ function mostrarAdmin() {
     document.getElementById('panelLogin').style.display = 'none';
     document.getElementById('panelAdmin').style.display = 'block';
     cargarClientes();
+    actualizarBadgeRegistros(); setInterval(actualizarBadgeRegistros, 60000); // V11: indicador visible y actualizado
     cargarPlanes().then(reabrirAltaPendiente);
 }
 
@@ -1401,7 +1429,8 @@ function renderPlanes() {
             <div class="plan-mods">${mods.map(m => `<label><input type="checkbox" id="pl_mod_${id}_${m.clave}" ${p.modulos[m.clave] ? 'checked' : ''}> ${_esc(m.nombre)}</label>`).join('')}</div>
             <button class="btn-primario btn-verde" id="pl_btn_${id}" onclick="guardarPlanUI('${id}')">Guardar ${_esc(p.nombre)}</button>
         </div>`;
-    }).join('');
+    }).join('') + '<div id="preciosZona" style="margin-top:6px;"><div class="ayuda">Cargando precios…</div></div>';
+    cargarPreciosAdmin();
 }
 
 // V6: antes de crear los planes se muestra qué negocios actuales perderían
@@ -1885,6 +1914,187 @@ async function accionPlanes(accion, btn) {
         toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
         await cargarPlanes(); renderPlanes(); abrirCheckpointGeneral();
     } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+
+// ══ V11: PRUEBAS Y REGISTROS (altas automáticas de planes.html) ══════════
+let _rg = null, _rgFiltro = 'TODAS';
+async function actualizarBadgeRegistros() {
+    try {
+        const r = await _adminApi('registrosPanel');
+        if (r.error) return;
+        _rg = r;
+        const n = r.enEspera + r.errores + r.duplicadosSemana;
+        const b = document.getElementById('badgeRegistros');
+        b.textContent = n; b.style.display = n ? 'inline-block' : 'none';
+        b.title = r.enEspera + ' en espera · ' + r.errores + ' con error · ' + r.duplicadosSemana + ' duplicados (7 días)';
+    } catch (e) {}
+}
+function abrirModalRegistros() { document.getElementById('modalRegistros').classList.add('visible'); cargarRegistros(); }
+function cerrarModalRegistros() { document.getElementById('modalRegistros').classList.remove('visible'); }
+async function cargarRegistros() {
+    const box = document.getElementById('registrosContenido');
+    try {
+        const r = await _adminApi('registrosPanel');
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        _rg = r; renderRegistros(); actualizarBadgeRegistros();
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+function _cifra(n, txt, alerta) { return '<div class="rg-cifra' + (alerta && n ? ' alerta' : '') + '"><b>' + n + '</b><span>' + txt + '</span></div>'; }
+function renderRegistros() {
+    const r = _rg, c = r.config, p = r.pruebas;
+    let h = '';
+    h += '<div style="padding:10px 12px;border-radius:12px;margin-bottom:12px;font-weight:800;' + (r.inscripcion.inscripcion === 'ABIERTA' ? 'background:#E8F5E9;color:#2E7D32;">🟢 Altas automáticas ABIERTAS' : 'background:#FFF4E5;color:#B25E00;">🟠 Nuevos registros van a LISTA DE ESPERA: ' + _esc(r.inscripcion.motivo)) + '</div>';
+    h += '<div class="rg-cifras">' +
+        _cifra(p.activas, 'Pruebas activas') + _cifra(p.gracia, 'En gracia') + _cifra(p.vencidas, 'Vencidas') +
+        _cifra(p.operando + ' / ' + c.maxSimultaneas, 'Operando / límite simultáneo') + _cifra(r.altasHoy + ' / ' + c.maxPorDia, 'Altas automáticas hoy / límite') +
+        _cifra(r.nuevosSemana, 'Comercios nuevos (7 días)') + _cifra(r.enEspera, 'En lista de espera', true) + _cifra(r.pendientesCodigo, 'Esperando código') +
+        _cifra(r.duplicadosSemana, 'Alertas de duplicado (7 días)', true) + _cifra(r.errores, 'Errores de alta', true) +
+        _cifra(r.codigosHoy + ' / ' + c.maxCodigosPorDia, 'Códigos enviados hoy') + _cifra(r.cuotaCorreo < 0 ? '—' : r.cuotaCorreo, 'Correos de Google disponibles hoy') + '</div>';
+    if (p.sinRegularizar) h += '<div class="ayuda">Incluye ' + p.sinRegularizar + ' prueba(s) anterior(es) sin regularizar, que cuentan como "operando".</div>';
+    // Configuración
+    h += '<details style="margin:10px 0;"><summary style="cursor:pointer;font-weight:800;color:#0D47A1;">⚙️ Límites y pausa de altas automáticas</summary>' +
+        '<div class="ayuda" style="margin:8px 0;">Valores iniciales para STAGING, no capacidades medidas. Solo afectan altas NUEVAS: las pruebas que ya existen no cambian.</div>' +
+        '<label class="chk" style="margin:6px 0 10px;"><input type="checkbox" id="rg_activas" ' + (c.activas ? 'checked' : '') + '> Altas automáticas activas</label>' +
+        '<div class="rg-conf">' +
+        '<div class="form-grupo"><label class="form-label">Pruebas simultáneas (máx.)</label><input class="form-input" id="rg_sim" type="number" min="0" value="' + c.maxSimultaneas + '"></div>' +
+        '<div class="form-grupo"><label class="form-label">Altas automáticas por día</label><input class="form-input" id="rg_dia" type="number" min="0" value="' + c.maxPorDia + '"></div>' +
+        '<div class="form-grupo"><label class="form-label">Códigos por correo por día</label><input class="form-input" id="rg_cod" type="number" min="0" max="90" value="' + c.maxCodigosPorDia + '"></div></div>' +
+        '<div id="rg_prev"></div><button class="btn-primario" style="background:#0D47A1;margin-top:8px;" onclick="previaConfigRegistros()">Revisar el cambio</button></details>';
+    // Solicitudes
+    const filtros = [['TODAS', 'Todas'], ['LISTA_ESPERA', 'En espera'], ['ERROR', 'Errores'], ['DUPLICADO', 'Duplicados'], ['ACTIVADA', 'Activadas'], ['CODIGO_ENVIADO', 'Esperando código']];
+    h += '<div class="rg-filtros">' + filtros.map(f => '<button class="' + (_rgFiltro === f[0] ? 'activo' : '') + '" onclick="_rgFiltro=\'' + f[0] + '\';renderRegistros()">' + f[1] + '</button>').join('') + '</div>';
+    const lista = r.solicitudes.filter(s => _rgFiltro === 'TODAS' || s.estado === _rgFiltro || (_rgFiltro === 'ERROR' && s.atascada) || (_rgFiltro === 'CODIGO_ENVIADO' && s.estado === 'HABILITADA'));
+    h += lista.length ? lista.map(_htmlSolicitud).join('') : '<div class="ayuda">No hay solicitudes en esta vista.</div>';
+    h += '<div class="ayuda" style="margin-top:14px;padding:10px;border-radius:10px;background:#ECEFF1;">🔒 ' + _esc(r.pagoBloqueado) + ' El botón "Pago recibido" se habilita cuando el contrato digital esté implementado y revisado.</div>';
+    document.getElementById('registrosContenido').innerHTML = h;
+}
+function _htmlSolicitud(s) {
+    const acciones = [];
+    if (s.estado === 'LISTA_ESPERA') acciones.push(['habilitar', 'Habilitar (excepción)', '#2E7D32']);
+    if (['CODIGO_ENVIADO', 'LISTA_ESPERA', 'HABILITADA'].includes(s.estado)) acciones.push(['rechazar', 'Rechazar', '#C62828']);
+    if (s.estado === 'ERROR' || s.atascada) acciones.push(['reintentar', 'Reintentar alta', '#0D47A1']);
+    return '<div class="rg-sol" id="sol_' + _esc(s.id) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+        '<b>' + _esc(s.comercio) + '</b><span class="est est-' + _esc(s.estado) + '">' + _esc(s.estado.replace('_', ' ')) + (s.atascada ? ' (atascada)' : '') + '</span></div>' +
+        '<div>' + _esc(s.responsable) + ' · ' + _esc(s.telefono) + ' · ' + _esc(s.correo) + '</div>' +
+        '<div class="ayuda" style="margin:2px 0 0;">Pedida ' + _esc(s.fecha) + (s.prefijo ? ' · prefijo <b>' + _esc(s.prefijo) + '</b>' : '') + (s.activacion ? ' · activada ' + _esc(s.activacion) : '') +
+        (s.excepcion ? ' · excepción: ' + _esc(s.excepcion) : '') + '</div>' +
+        (s.detalle ? '<div class="ayuda" style="margin:2px 0 0;color:#8A4B00;">' + _esc(s.detalle) + '</div>' : '') +
+        (acciones.length ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + acciones.map(a =>
+            '<button class="btn-accion" style="background:' + a[2] + ';color:white;" onclick="previaAccionSolicitud(\'' + _esc(s.id) + '\',\'' + a[0] + '\')">' + a[1] + '</button>').join('') + '</div>' : '') +
+        '<div id="acc_' + _esc(s.id) + '"></div></div>';
+}
+async function previaAccionSolicitud(id, accion) {
+    const box = document.getElementById('acc_' + id);
+    box.innerHTML = '<div class="ayuda">Revisando…</div>';
+    const r = await _adminApi('registroAccion', { solicitudId: id, accion });
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-top:6px;"><div>' + _esc(r.impacto) + '</div>' +
+        (accion === 'rechazar' ? '<input class="form-input" id="mot_' + _esc(id) + '" placeholder="Motivo (opcional)" style="margin-top:6px;">' : '') +
+        '<div style="display:flex;gap:6px;margin-top:6px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'acc_' + _esc(id) + '\').innerHTML=\'\'">Cancelar</button>' +
+        '<button class="btn-accion" style="background:#0D47A1;color:white;" onclick="aplicarAccionSolicitud(\'' + _esc(id) + '\',\'' + accion + '\', this)">Confirmar</button></div></div>';
+}
+async function aplicarAccionSolicitud(id, accion, btn) {
+    btn.disabled = true;
+    const mot = document.getElementById('mot_' + id);
+    const r = await _adminApi('registroAccion', { solicitudId: id, accion, confirmar: true, motivo: mot ? mot.value : '' });
+    toast(r.error ? 'Error: ' + r.error : (r.mensaje || (r.creado ? '✅ Alta completada: ' + r.prefijo : '✅ Listo')), r.error ? 'rojo' : 'verde');
+    await cargarRegistros(); cargarClientes();
+}
+let _rgPrev = null;
+async function previaConfigRegistros() {
+    const d = { activas: document.getElementById('rg_activas').checked, maxSimultaneas: document.getElementById('rg_sim').value,
+                maxPorDia: document.getElementById('rg_dia').value, maxCodigosPorDia: document.getElementById('rg_cod').value };
+    const box = document.getElementById('rg_prev');
+    const r = await _adminApi('registrosConfig', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _rgPrev = Object.assign(d, { firma: r.firma });
+    const f = (o) => (o.activas ? 'activas' : 'PAUSADAS') + ' · ' + o.maxSimultaneas + ' simultáneas · ' + o.maxPorDia + ' por día · ' + o.maxCodigosPorDia + ' códigos/día';
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-top:8px;font-size:0.85rem;">Antes: ' + _esc(f(r.antes)) + '<br>Después: <b>' + _esc(f(r.despues)) + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="aplicarConfigRegistros(this)">Confirmar cambio</button></div></div>';
+}
+async function aplicarConfigRegistros(btn) {
+    btn.disabled = true;
+    const r = await _adminApi('registrosConfig', Object.assign({ confirmar: true }, _rgPrev));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    await cargarRegistros();
+}
+
+// ══ V11: PRECIOS Y OFERTA (en 🧩 Planes) ═════════════════════════════════
+async function cargarPreciosAdmin() {
+    const box = document.getElementById('preciosZona');
+    if (!box) return;
+    try {
+        const r = await _adminApi('getPlanesPublicos');
+        let h = '<div class="plan-card" style="border-color:#0D47A1;"><h4>💲 Precios y oferta de lanzamiento</h4>';
+        if (!r.preciosConfigurados) {
+            h += '<p class="ayuda">PLANES_VAO todavía no tiene precios. "Preparar" agrega las columnas de precio, carga los valores aprobados (BÁSICO 25.000/15.000 · PLUS 35.000/20.000 próximamente · PRO 45.000/25.000), agrega PLUS como no contratable y crea la oferta de 20 cupos. Ningún negocio cambia.</p>' +
+                 '<div id="prepPrev"></div><button class="btn-primario" style="background:#0D47A1;" onclick="previaPrepararPrecios()">Revisar qué se prepara</button>';
+        } else {
+            h += '<p class="ayuda">Los cambios valen para contrataciones NUEVAS. La página pública los toma enseguida (sin tocar el HTML).</p>';
+            h += r.planes.filter(p => p.codigo !== 'PRUEBA').map(p => {
+                const id = _esc(p.codigo);
+                if (p.cotizacion) return '<div style="margin:8px 0;"><b>' + _esc(p.nombre) + '</b>: cotización individual</div>';
+                return '<div style="border-top:1px solid var(--borde);padding-top:8px;margin-top:8px;"><b>' + _esc(p.nombre) + '</b>' + (p.proximamente ? ' <span class="ayuda">(próximamente, no contratable)</span>' : '') +
+                    '<div class="form-fila"><div class="form-grupo"><label class="form-label">Precio regular / mes</label><input class="form-input" id="pr_reg_' + id + '" inputmode="numeric" value="' + (p.precioRegular ?? '') + '"></div>' +
+                    '<div class="form-grupo"><label class="form-label">Precio de lanzamiento / mes</label><input class="form-input" id="pr_lan_' + id + '" inputmode="numeric" value="' + (p.precioLanzamiento ?? '') + '"></div></div>' +
+                    '<div id="pr_prev_' + id + '"></div><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="previaPrecio(\'' + id + '\')">Revisar cambio de precio</button></div>';
+            }).join('');
+            h += '<div style="border-top:1px solid var(--borde);padding-top:8px;margin-top:10px;"><b>🚀 Oferta de lanzamiento</b>: ' + (r.promo ? 'activa (' + r.promo.meses + ' meses)' : 'pausada, finalizada o sin cupo') +
+                 '<div class="form-fila"><div class="form-grupo"><label class="form-label">Estado</label><select class="form-select" id="pm_estado"><option value="ACTIVA">Activa</option><option value="PAUSADA">Pausada</option><option value="FINALIZADA">Finalizada</option></select></div>' +
+                 '<div class="form-grupo"><label class="form-label">Cupo total</label><input class="form-input" id="pm_cupo" inputmode="numeric" placeholder="20"></div></div>' +
+                 '<div id="pm_prev"></div><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="previaPromo()">Revisar cambio de la oferta</button>' +
+                 '<div class="ayuda">Los cupos solo se confirman con contrato aceptado + primer pago (hoy bloqueado). Ninguna prueba gratuita consume cupos.</div></div>';
+        }
+        box.innerHTML = h + '</div>';
+        if (r.promo === null && document.getElementById('pm_estado')) document.getElementById('pm_estado').value = 'PAUSADA';
+    } catch (e) { box.innerHTML = '<div class="ayuda">No se pudieron cargar los precios.</div>'; }
+}
+async function previaPrepararPrecios() {
+    const box = document.getElementById('prepPrev');
+    const r = await _adminApi('prepararPreciosPlanes');
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:0.84rem;"><ul style="margin:0 0 6px 18px;">' + r.cambios.map(c => '<li>' + _esc(c) + '</li>').join('') + '</ul>' + _esc(r.nota) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPrepararPrecios(\'' + _esc(r.firma) + '\', this)">Confirmar y preparar</button></div></div>';
+}
+async function aplicarPrepararPrecios(firma, btn) {
+    btn.disabled = true;
+    const r = await _adminApi('prepararPreciosPlanes', { confirmar: true, firma });
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    await cargarPlanes(); renderPlanes();
+}
+let _prPrev = {};
+async function previaPrecio(id) {
+    const d = { plan: id, precioRegular: document.getElementById('pr_reg_' + id).value.trim(), precioLanzamiento: document.getElementById('pr_lan_' + id).value.trim() };
+    const box = document.getElementById('pr_prev_' + id);
+    const r = await _adminApi('guardarPreciosPlan', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _prPrev[id] = Object.assign(d, { firma: r.firma });
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:0.84rem;">Regular: ' + _esc(r.antes.Precio_regular || '—') + ' → <b>' + _esc(r.despues.Precio_regular || '—') + '</b> · Lanzamiento: ' +
+        _esc(r.antes.Precio_lanzamiento || '—') + ' → <b>' + _esc(r.despues.Precio_lanzamiento || '—') + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPrecio(\'' + id + '\', this)">Confirmar precio</button></div></div>';
+}
+async function aplicarPrecio(id, btn) {
+    btn.disabled = true;
+    const r = await _adminApi('guardarPreciosPlan', Object.assign({ confirmar: true }, _prPrev[id]));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    cargarPreciosAdmin();
+}
+let _pmPrev = null;
+async function previaPromo() {
+    const d = { estado: document.getElementById('pm_estado').value };
+    const cupo = document.getElementById('pm_cupo').value.trim(); if (cupo) d.cupoTotal = cupo;
+    const box = document.getElementById('pm_prev');
+    const r = await _adminApi('guardarPromocion', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _pmPrev = Object.assign(d, { firma: r.firma });
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:0.84rem;">' + _esc(r.antes.estado) + ', cupo ' + r.antes.cupoTotal + ' → <b>' + _esc(r.despues.estado) + ', cupo ' + r.despues.cupoTotal + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPromo(this)">Confirmar</button></div></div>';
+}
+async function aplicarPromo(btn) {
+    btn.disabled = true;
+    const r = await _adminApi('guardarPromocion', Object.assign({ confirmar: true }, _pmPrev));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    cargarPreciosAdmin();
 }
 </script>
 </body>

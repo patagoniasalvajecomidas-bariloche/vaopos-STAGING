@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VAO POS · Probalo gratis 7 días</title>
+<meta name="description" content="VAO POS: ventas, stock, fiados y reportes para tu comercio, desde el celular. Probalo gratis 7 días, sin tarjeta.">
+<meta property="og:title" content="VAO POS · Tu comercio, organizado">
+<meta property="og:description" content="Probalo gratis 7 días. Sin tarjeta de crédito.">
+<meta name="theme-color" content="#0D47A1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* planes.html v1 (STAGING) — página pública de VAO POS. Precios y condiciones vienen del servidor. */
+:root {
+  --tinta:   #0D47A1;   /* azul VAO oscuro: títulos y texto fuerte */
+  --azul:    #1E88E5;   /* azul VAO: acciones */
+  --verde:   #2E8B1E;   /* verde VAO (más oscuro para contraste): gratis / listo */
+  --fondo:   #E9F1FA;   /* cielo frío detrás del ticket */
+  --papel:   #FFFFFF;
+  --texto:   #16263D;
+  --suave:   #4D6079;
+  --borde:   #C9D8EA;
+  --aviso:   #8A4B00;
+  --rojo:    #B3261E;
+  --radio:   14px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 400 17px/1.55 'Atkinson Hyperlegible', system-ui, sans-serif; }
+a { color: var(--azul); }
+:focus-visible { outline: 3px solid var(--azul); outline-offset: 2px; border-radius: 6px; }
+.col { max-width: 620px; margin: 0 auto; padding: 0 16px; }
+h1, h2, h3 { color: var(--tinta); line-height: 1.15; margin: 0; }
+h2 { font-size: 1.55rem; margin-bottom: 14px; }
+section { padding: 36px 0; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border: 0; border-radius: 12px;
+       font: 700 1.05rem 'Atkinson Hyperlegible', sans-serif; cursor: pointer; text-decoration: none; }
+.btn-principal { background: var(--verde); color: #fff; width: 100%; font-size: 1.15rem; }
+.btn-azul { background: var(--azul); color: #fff; }
+.btn-claro { background: #fff; color: var(--tinta); border: 2px solid var(--borde); }
+.btn[disabled] { opacity: .55; cursor: wait; }
+.chico { font-size: .9rem; color: var(--suave); }
+
+/* ── encabezado y ticket ─────────────────────────────── */
+header { background: var(--tinta); color: #fff; padding: 28px 0 0; }
+.marca { font-weight: 700; font-size: 1.05rem; letter-spacing: .02em; opacity: .9; }
+header h1 { color: #fff; font-size: clamp(2.3rem, 9vw, 3.2rem); margin-top: 6px; }
+header p.lema { font-size: 1.25rem; margin: 6px 0 22px; color: #D6E6FA; }
+.ranura { height: 14px; background: #082E6B; border-radius: 10px; margin: 0 -4px; position: relative; z-index: 2; box-shadow: inset 0 3px 4px rgba(0,0,0,.45); }
+.ticket { position: relative; z-index: 1; background: var(--papel); color: #1A1A1A; margin: -7px 10px 0; padding: 22px 20px 26px;
+          font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .95rem;
+          -webkit-mask: radial-gradient(circle 7px at 50% 100%, transparent 6.5px, #000 7px) 0 0 / 18px 100% repeat-x;
+                  mask: radial-gradient(circle 7px at 50% 100%, transparent 6.5px, #000 7px) 0 0 / 18px 100% repeat-x; }
+.ticket .t-tit { text-align: center; font-weight: 600; font-size: 1.15rem; letter-spacing: .04em; }
+.ticket .t-sub { text-align: center; color: #555; font-size: .85rem; margin-bottom: 12px; }
+.ticket .linea { display: flex; gap: 6px; align-items: baseline; }
+.ticket .linea span:nth-child(2) { flex: 1; border-bottom: 2px dotted #999; transform: translateY(-4px); }
+.ticket .total { border-top: 2px dashed #888; margin-top: 10px; padding-top: 10px; font-weight: 600; font-size: 1.1rem; }
+.ticket .t-pie { text-align: center; margin-top: 12px; color: #444; font-size: .85rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .ticket { animation: imprimir 1.1s cubic-bezier(.2,.7,.2,1) .25s both; }
+  @keyframes imprimir { from { transform: translateY(-62%); } to { transform: translateY(0); } }
+}
+.hero-cta { padding: 26px 0 8px; }
+.hero-cta .chico { text-align: center; margin-top: 10px; }
+.aviso-espera { background: #FFF4E5; border: 1px solid #F0C27B; color: var(--aviso); border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: .95rem; }
+
+/* ── qué hace ───────────────────────────────────────── */
+ul.hace { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+ul.hace li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+ul.hace .ic { font-size: 1.5rem; line-height: 1.2; }
+ul.hace b { color: var(--tinta); }
+
+/* ── planes ─────────────────────────────────────────── */
+.planes { display: grid; gap: 14px; }
+.plan { background: #fff; border: 2px solid var(--borde); border-radius: var(--radio); padding: 16px 16px 14px; }
+.plan.gratis { border-color: var(--verde); }
+.plan.prox { background: #F4F7FB; border-style: dashed; }
+.plan-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.plan h3 { font-size: 1.3rem; }
+.precio { font-size: 1.5rem; font-weight: 700; color: var(--texto); }
+.precio small { font-size: .9rem; font-weight: 400; color: var(--suave); }
+.oferta { display: inline-block; background: #E8F4E4; color: #1F6413; border-radius: 999px; padding: 3px 10px; font-size: .85rem; font-weight: 700; margin: 6px 0 2px; }
+.lineas-precio { margin: 6px 0 0; font-size: .98rem; }
+.lineas-precio div { display: flex; justify-content: space-between; gap: 10px; }
+.mods { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.mods li { background: #EEF4FB; color: var(--tinta); border-radius: 8px; padding: 2px 9px; font-size: .88rem; }
+.estado-carga { background: #fff; border-radius: var(--radio); padding: 18px; color: var(--suave); }
+
+/* ── registro ───────────────────────────────────────── */
+#empezar { background: #fff; }
+.pasos { display: flex; gap: 6px; margin-bottom: 18px; }
+.pasos div { flex: 1; height: 6px; border-radius: 4px; background: var(--borde); }
+.pasos div.hecho { background: var(--verde); }
+.campo { margin-bottom: 14px; }
+.campo label { display: block; font-weight: 700; margin-bottom: 4px; }
+.campo input { width: 100%; min-height: 50px; border: 2px solid var(--borde); border-radius: 10px; padding: 10px 12px; font: inherit; background: #fff; color: var(--texto); }
+.campo input:focus { border-color: var(--azul); outline: none; }
+.campo .ayuda { font-size: .85rem; color: var(--suave); margin-top: 3px; }
+.campo.mal input { border-color: var(--rojo); }
+.trampa { position: absolute; left: -5000px; width: 1px; height: 1px; overflow: hidden; }
+.condiciones { border: 2px solid var(--borde); border-radius: 10px; padding: 10px 12px; max-height: 190px; overflow-y: auto; font-size: .9rem; white-space: pre-line; background: #FAFCFF; }
+.check { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; margin: 12px 0 16px; font-weight: 700; }
+.check input { width: 24px; height: 24px; margin: 2px 0 0; }
+.msg { border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; font-size: .97rem; }
+.msg.error { background: #FDECEA; color: var(--rojo); }
+.msg.ok { background: #E8F4E4; color: #1F6413; }
+.msg.info { background: #EEF4FB; color: var(--tinta); }
+input.codigo { font-family: 'IBM Plex Mono', monospace; font-size: 1.8rem; letter-spacing: .45em; text-align: center; }
+.fila-btn { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.fila-btn .btn { flex: 1 1 160px; }
+.pin { font-family: 'IBM Plex Mono', monospace; font-size: 2.4rem; font-weight: 600; letter-spacing: .25em; text-align: center; background: #F2F7EF; border: 2px dashed var(--verde); border-radius: 12px; padding: 10px; margin: 8px 0; color: #1A1A1A; }
+ol.instr { padding-left: 22px; margin: 10px 0; }
+ol.instr li { margin-bottom: 6px; }
+
+/* ── preguntas y compartir ──────────────────────────── */
+details { background: #fff; border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--borde); }
+summary { cursor: pointer; padding: 14px 16px; font-weight: 700; color: var(--tinta); list-style-position: outside; }
+details p { margin: 0; padding: 0 16px 14px; }
+.compartir { display: grid; gap: 10px; }
+.qr-caja { background: #fff; border-radius: var(--radio); padding: 18px; text-align: center; border: 2px solid var(--borde); }
+#qr { display: inline-block; padding: 12px; background: #fff; }
+#qr img, #qr canvas { width: 220px !important; height: 220px !important; image-rendering: pixelated; }
+.wa { background: #1E8E4E; color: #fff; }
+footer { padding: 26px 0 40px; font-size: .88rem; color: var(--suave); }
+.oculto { display: none !important; }
+@media (min-width: 720px) { body { font-size: 18px; } .ticket { margin: -7px 40px 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="col">
+    <div class="marca">VAO Sistemas</div>
+    <h1>VAO POS</h1>
+    <p class="lema">Tu comercio, organizado.</p>
+    <div class="ranura" aria-hidden="true"></div>
+    <div class="ticket" role="img" aria-label="Prueba gratis de 7 días, más 3 días de gracia, total 0 pesos, sin tarjeta de crédito">
+      <div class="t-tit">PROBALO GRATIS 7 DÍAS</div>
+      <div class="t-sub">Todas las funciones disponibles</div>
+      <div class="linea"><span>Prueba completa</span><span></span><span><span id="tDias">7</span> días</span></div>
+      <div class="linea"><span>Días de gracia</span><span></span><span>+ <span id="tGracia">3</span></span></div>
+      <div class="linea"><span>Tarjeta de crédito</span><span></span><span>no</span></div>
+      <div class="linea total"><span>TOTAL</span><span></span><span>$0</span></div>
+      <div class="t-pie">¡Gracias por elegirnos!</div>
+    </div>
+  </div>
+</header>
+
+<div class="col hero-cta">
+  <a class="btn btn-principal" id="ctaPrincipal" href="#empezar">Empezar mi prueba gratis</a>
+  <div class="chico">Sin tarjeta de crédito. Se crea al instante con tu correo.</div>
+  <div class="aviso-espera oculto" id="avisoEspera">Por el momento alcanzamos la capacidad de nuevas pruebas. Podés anotarte y te avisamos por correo cuando puedas comenzar.</div>
+</div>
+
+<section>
+  <div class="col">
+    <h2>Lo que hacés con VAO POS</h2>
+    <ul class="hace">
+      <li><span class="ic" aria-hidden="true">🛒</span><span><b>Vendés más rápido.</b> Buscás el producto, cobrás en efectivo, transferencia o Mercado Pago y mandás el ticket por WhatsApp.</span></li>
+      <li><span class="ic" aria-hidden="true">📦</span><span><b>Sabés qué tenés.</b> El stock se descuenta solo con cada venta y cargás la mercadería que entra.</span></li>
+      <li><span class="ic" aria-hidden="true">📒</span><span><b>Llevás los fiados.</b> Quién te debe, cuánto y desde cuándo, con sus pagos a cuenta.</span></li>
+      <li><span class="ic" aria-hidden="true">📊</span><span><b>Ves cómo te fue.</b> Resumen del día y reportes de ventas.</span></li>
+      <li><span class="ic" aria-hidden="true">📱</span><span><b>Desde el celular.</b> Funciona en el navegador, sin instalar nada. Tus datos son tuyos y los podés descargar cuando quieras.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section style="padding-top:8px;">
+  <div class="col">
+    <h2>Planes</h2>
+    <div id="planes" class="planes"><div class="estado-carga">Cargando los planes…</div></div>
+    <p class="chico" id="notaPlanes" style="margin-top:12px;">Los precios son mensuales, en pesos argentinos. Para pasar a un plan pago, VAO Sistemas te envía el contrato y sus condiciones antes de cobrarte.</p>
+  </div>
+</section>
+
+<section id="empezar">
+  <div class="col">
+    <h2 id="tituloRegistro">Empezá tu prueba gratis</h2>
+    <div class="pasos" aria-hidden="true"><div id="p1" class="hecho"></div><div id="p2"></div><div id="p3"></div></div>
+    <div id="msg" class="msg oculto" role="status" aria-live="polite"></div>
+
+    <!-- Paso 1: datos -->
+    <form id="formDatos" novalidate>
+      <div class="campo" id="c_comercio"><label for="comercio">Nombre del comercio</label><input id="comercio" maxlength="60" autocomplete="organization" required></div>
+      <div class="campo" id="c_responsable"><label for="responsable">Tu nombre y apellido</label><input id="responsable" maxlength="60" autocomplete="name" required></div>
+      <div class="campo" id="c_telefono"><label for="telefono">Teléfono / WhatsApp</label><input id="telefono" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="Ej.: 2944 123456" required>
+        <div class="ayuda">Con característica, sin 0 ni 15.</div></div>
+      <div class="campo" id="c_correo"><label for="correo">Correo electrónico</label><input id="correo" type="email" inputmode="email" maxlength="100" autocomplete="email" required>
+        <div class="ayuda">Te mandamos un código para confirmarlo.</div></div>
+      <div class="trampa" aria-hidden="true"><label>Sitio web <input id="web" tabindex="-1" autocomplete="off"></label></div>
+      <div class="campo"><label>Condiciones de la prueba</label><div class="condiciones" id="condiciones">Cargando…</div></div>
+      <label class="check" id="c_acepta"><input type="checkbox" id="acepta"><span>Leí y acepto las condiciones de la prueba y el uso de mis datos.</span></label>
+      <button class="btn btn-principal" id="btnCodigo" type="submit">Enviarme el código</button>
+    </form>
+
+    <!-- Paso 2: código -->
+    <form id="formCodigo" class="oculto" novalidate>
+      <p id="textoCodigo">Te enviamos un código de 6 números.</p>
+      <div class="campo"><label for="codigo">Código</label><input id="codigo" class="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\d{6}"></div>
+      <button class="btn btn-principal" id="btnConfirmar" type="submit">Crear mi prueba</button>
+      <div class="fila-btn">
+        <button class="btn btn-claro" id="btnReenviar" type="button" disabled>Reenviar código</button>
+        <button class="btn btn-claro" id="btnCambiar" type="button">Cambiar mis datos</button>
+      </div>
+    </form>
+
+    <!-- Paso 3: listo -->
+    <div id="listo" class="oculto">
+      <p class="msg ok" id="textoListo">¡Tu prueba está lista!</p>
+      <div id="bloquePin">
+        <div>Tu PIN para entrar:</div>
+        <div class="pin" id="pin">······</div>
+        <p class="chico">Guardalo. También te lo mandamos por correo. Quien tenga el PIN puede operar tu POS.</p>
+      </div>
+      <ol class="instr">
+        <li>Tocá <b>Entrar a mi POS</b> y guardá esa página en el inicio del celular.</li>
+        <li>Poné tu PIN.</li>
+        <li>Cargá tus primeros productos desde <b>Ingresar mercadería</b> y hacé tu primera venta.</li>
+      </ol>
+      <p class="chico" id="textoVence"></p>
+      <a class="btn btn-principal" id="btnPos" href="#">Entrar a mi POS</a>
+    </div>
+
+    <!-- Lista de espera -->
+    <div id="espera" class="oculto">
+      <p class="msg info" id="textoEspera"></p>
+      <p class="chico">No hace falta que vuelvas a anotarte. Te escribimos al correo que confirmaste.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Preguntas frecuentes</h2>
+    <details><summary>¿Necesito tarjeta de crédito?</summary><p>No. La prueba es gratis y no te pedimos ningún medio de pago.</p></details>
+    <details><summary>¿Qué pasa cuando terminan los 7 días?</summary><p>Tenés 3 días de gracia en los que podés seguir usándolo. Después no se pueden registrar ventas nuevas, pero tus datos quedan guardados y los podés consultar y descargar.</p></details>
+    <details><summary>¿Los datos son míos?</summary><p>Sí. Podés descargar tus registros hoja por hoja desde el primer día. Nadie más ve los datos de tu comercio.</p></details>
+    <details><summary>¿Tengo que instalar algo?</summary><p>No. Se usa desde el navegador del celular o de la computadora.</p></details>
+    <details><summary>¿Puedo probarlo más de una vez?</summary><p>No. La prueba gratis es una sola vez por comercio, teléfono o correo.</p></details>
+    <details><summary>¿Cómo paso a un plan pago?</summary><p>Elegís el plan, VAO Sistemas te envía el contrato y las condiciones, y recién después pagás por transferencia o Mercado Pago.</p></details>
+  </div>
+</section>
+
+<section style="padding-top:8px;">
+  <div class="col">
+    <h2>Recomendá VAO POS</h2>
+    <p>¿Conocés a otro comerciante al que le sirva? Pasale el enlace o mostrale el código QR.</p>
+    <div class="compartir">
+      <a class="btn wa" id="btnWhatsApp" href="#" target="_blank" rel="noopener">Compartir por WhatsApp</a>
+      <button class="btn btn-claro" id="btnCopiar" type="button">Copiar enlace</button>
+      <div class="qr-caja">
+        <div id="qr" aria-label="Código QR de la página de VAO POS"></div>
+        <div class="chico" id="qrUrl" style="word-break:break-all;"></div>
+        <div class="fila-btn"><button class="btn btn-azul" id="btnBajarQR" type="button">Descargar QR</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer><div class="col">VAO POS es un servicio de VAO Sistemas. Página de pruebas (STAGING).</div></footer>
+
+<script>
+// planes.html v1 — STAGING. Todo lo comercial (precios, oferta, condiciones, cupos) lo decide el servidor.
+const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
+const URL_PUBLICA = location.origin + location.pathname;
+const LS_SOL = 'vao_registro_solicitud';
+const T0 = Date.now();
+let CONDICIONES = null, solicitudId = null, reenviarTimer = null;
+
+const $ = id => document.getElementById(id);
+const pesos = n => '$' + Number(n).toLocaleString('es-AR');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function guardarSol(id) { try { id ? localStorage.setItem(LS_SOL, id) : localStorage.removeItem(LS_SOL); } catch (e) {} }
+function leerSol() { try { return localStorage.getItem(LS_SOL); } catch (e) { return null; } }
+
+async function api(action, data) {
+  const url = API_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data || {}));
+  const r = await fetch(url, { redirect: 'follow' });
+  return r.json();
+}
+
+function mensaje(texto, tipo) {
+  const m = $('msg');
+  if (!texto) { m.classList.add('oculto'); return; }
+  m.className = 'msg ' + (tipo || 'info'); m.textContent = texto;
+}
+function paso(n) {
+  ['formDatos', 'formCodigo', 'listo', 'espera'].forEach(id => $(id).classList.add('oculto'));
+  $({ 1: 'formDatos', 2: 'formCodigo', 3: 'listo', 4: 'espera' }[n]).classList.remove('oculto');
+  $('p2').classList.toggle('hecho', n >= 2); $('p3').classList.toggle('hecho', n >= 3 && n !== 4);
+}
+
+// ── planes (desde el servidor) ──────────────────────────────────────
+function htmlPlan(p, promo) {
+  const mods = (p.modulos || []).length ? '<ul class="mods">' + p.modulos.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul>' : '';
+  if (p.codigo === 'PRUEBA') {
+    return '<div class="plan gratis"><div class="plan-cab"><h3>' + esc(p.nombre) + '</h3><div class="precio">Gratis</div></div>' +
+      '<div class="lineas-precio">7 días + 3 de gracia. Todas las funciones.</div>' + mods + '</div>';
+  }
+  if (p.proximamente) {
+    return '<div class="plan prox"><div class="plan-cab"><h3>' + esc(p.nombre) + '</h3><div class="precio"><small>Próximamente</small></div></div>' +
+      '<div class="lineas-precio chico">Todavía no se puede contratar.</div></div>';
+  }
+  if (p.cotizacion) {
+    return '<div class="plan"><div class="plan-cab"><h3>' + esc(p.nombre) + '</h3><div class="precio"><small>Cotización individual</small></div></div>' +
+      '<div class="lineas-precio chico">Armamos el plan con los módulos que necesites.</div></div>';
+  }
+  let precio = '';
+  if (p.precioRegular === null || p.precioRegular === undefined) precio = '<div class="lineas-precio chico">Precio a confirmar.</div>';
+  else if (p.conPromo && promo) {
+    precio = '<span class="oferta">🚀 OFERTA DE LANZAMIENTO</span>' +
+      '<div class="lineas-precio"><div><span>Precio regular</span><span>' + pesos(p.precioRegular) + '/mes</span></div>' +
+      '<div><b>Precio de lanzamiento</b><b>' + pesos(p.precioLanzamiento) + '/mes</b></div>' +
+      '<div class="chico">Durante los primeros ' + promo.meses + ' meses de la contratación paga.</div></div>';
+  } else precio = '<div class="lineas-precio"><div><span>Precio</span><b>' + pesos(p.precioRegular) + '/mes</b></div></div>';
+  return '<div class="plan"><div class="plan-cab"><h3>' + esc(p.nombre) + '</h3></div>' + precio + mods + '</div>';
+}
+
+async function cargarPlanes() {
+  try {
+    const r = await api('getPlanesPublicos', {});
+    if (!r.success) throw new Error(r.error || 'sin datos');
+    $('tDias').textContent = r.prueba.dias; $('tGracia').textContent = r.prueba.gracia;
+    $('planes').innerHTML = r.planes.map(p => htmlPlan(p, r.promo)).join('') +
+      (r.promo ? '<p class="chico">' + esc(r.promo.condiciones) + '</p>' : '');
+    CONDICIONES = r.condicionesPrueba;
+    $('condiciones').textContent = CONDICIONES.texto;
+    if (r.inscripcion === 'LISTA_ESPERA') {
+      $('avisoEspera').classList.remove('oculto');
+      $('ctaPrincipal').textContent = 'Anotarme en la lista de espera';
+      $('tituloRegistro').textContent = 'Anotate en la lista de espera';
+    }
+  } catch (e) {
+    $('planes').innerHTML = '<div class="estado-carga">No pudimos cargar los planes. Revisá tu conexión y volvé a intentar. <button class="btn btn-claro" style="margin-top:10px;width:100%" onclick="cargarPlanes()">Reintentar</button></div>';
+    $('condiciones').textContent = 'No pudimos cargar las condiciones. Recargá la página para continuar.';
+  }
+}
+
+// ── registro ────────────────────────────────────────────────────────
+function marcar(campo) {
+  ['comercio', 'responsable', 'telefono', 'correo', 'acepta'].forEach(c => { const el = $('c_' + c); if (el) el.classList.toggle('mal', c === campo); });
+  if (campo && $(campo)) $(campo).focus();
+}
+function iniciarReenvio() {
+  let s = 60; const b = $('btnReenviar'); b.disabled = true;
+  clearInterval(reenviarTimer);
+  reenviarTimer = setInterval(() => { s--; b.textContent = s > 0 ? 'Reenviar código (' + s + ')' : 'Reenviar código'; if (s <= 0) { clearInterval(reenviarTimer); b.disabled = false; } }, 1000);
+}
+function mostrarResultado(r) {
+  if (r.listaEspera) { $('textoEspera').textContent = r.mensaje; paso(4); mensaje(''); return; }
+  if (r.creado || r.yaCreado) {
+    $('btnPos').href = r.posUrl;
+    if (r.pin) { $('pin').textContent = r.pin; $('bloquePin').classList.remove('oculto'); $('textoListo').textContent = '¡Tu prueba está lista! Tu comercio quedó creado.'; }
+    else { $('bloquePin').classList.add('oculto'); $('textoListo').textContent = r.mensaje || 'Tu prueba ya está creada. El PIN te lo enviamos por correo.'; }
+    $('textoVence').textContent = r.venceTxt ? 'Tu prueba dura hasta el ' + r.venceTxt + ', con gracia hasta el ' + r.finGraciaTxt + '.' : '';
+    paso(3); mensaje(''); return;
+  }
+  if (r.esperaCodigo) { solicitudId = r.solicitudId; $('textoCodigo').textContent = r.mensaje; paso(2); return; }
+}
+
+$('formDatos').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  if (!CONDICIONES) { mensaje('Todavía no cargaron las condiciones. Recargá la página.', 'error'); return; }
+  if (!$('acepta').checked) { mensaje('Para seguir tenés que leer y aceptar las condiciones de la prueba.', 'error'); marcar('acepta'); return; }
+  const btn = $('btnCodigo'); btn.disabled = true; btn.textContent = 'Enviando…'; mensaje('');
+  try {
+    const r = await api('registroSolicitarCodigo', {
+      comercio: $('comercio').value, responsable: $('responsable').value, telefono: $('telefono').value, correo: $('correo').value,
+      acepta: true, condicionesVersion: CONDICIONES.version, web: $('web').value, t: Date.now() - T0 });
+    if (r.success && r.solicitudId && !r.listaEspera && !r.yaCreado) {
+      solicitudId = r.solicitudId; guardarSol(solicitudId);
+      $('textoCodigo').textContent = r.mensaje; paso(2); iniciarReenvio(); $('codigo').focus();
+    } else if (r.success) { guardarSol(r.solicitudId); mostrarResultado(r); }
+    else { mensaje(r.error || 'No pudimos enviar el código.', 'error'); marcar(r.campo || null); }
+  } catch (e) { mensaje('Sin conexión. Revisá internet y volvé a intentar.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Enviarme el código';
+});
+
+$('formCodigo').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const cod = $('codigo').value.replace(/\D/g, '');
+  if (cod.length !== 6) { mensaje('El código tiene 6 números.', 'error'); return; }
+  const btn = $('btnConfirmar'); btn.disabled = true; btn.textContent = 'Creando tu prueba…'; mensaje('');
+  try {
+    const r = await api('registroConfirmar', { solicitudId, codigo: cod });
+    if (r.success) mostrarResultado(r);
+    else {
+      mensaje(r.error || 'No pudimos verificar el código.', 'error');
+      if (r.codigoVencido) { $('btnReenviar').disabled = false; $('btnReenviar').textContent = 'Pedir un código nuevo'; }
+    }
+  } catch (e) {
+    // Sin respuesta: puede haberse creado igual. Se consulta el estado; nunca se crea dos veces.
+    try { const s = await api('registroEstado', { solicitudId }); if (s.success && (s.yaCreado || s.listaEspera)) { mostrarResultado(s); } else mensaje('Sin conexión. Volvé a tocar "Crear mi prueba": no se va a crear dos veces.', 'error'); }
+    catch (e2) { mensaje('Sin conexión. Volvé a tocar "Crear mi prueba": no se va a crear dos veces.', 'error'); }
+  }
+  btn.disabled = false; btn.textContent = 'Crear mi prueba';
+});
+
+$('btnReenviar').addEventListener('click', async () => {
+  const b = $('btnReenviar'); b.disabled = true;
+  try {
+    const r = await api('registroSolicitarCodigo', { solicitudId, t: Date.now() - T0 });
+    if (r.success && r.solicitudId) { mensaje(r.mensaje, 'info'); iniciarReenvio(); }
+    else if (r.success) mostrarResultado(r);
+    else { mensaje(r.error, 'error'); b.disabled = false; }
+  } catch (e) { mensaje('Sin conexión.', 'error'); b.disabled = false; }
+});
+$('btnCambiar').addEventListener('click', () => { solicitudId = null; guardarSol(null); mensaje(''); paso(1); });
+$('codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
+
+// Retomar: ?s=<solicitud> (invitación de VAO) o una solicitud guardada en este teléfono.
+async function retomar() {
+  const q = new URLSearchParams(location.search).get('s');
+  const id = q || leerSol();
+  if (!id) return;
+  try {
+    const r = await api('registroEstado', { solicitudId: id });
+    if (r.error && !r.enRevision) { if (!q) guardarSol(null); else mensaje(r.error, 'error'); return; }
+    solicitudId = id;
+    if (r.enRevision) { mensaje(r.error, 'info'); return; }
+    if (r.esperaCodigo) {
+      paso(2); $('textoCodigo').textContent = r.mensaje + (r.habilitada ? '' : '');
+      $('btnReenviar').disabled = false; $('btnReenviar').textContent = r.habilitada ? 'Enviarme el código' : 'Reenviar código';
+      if (q) location.hash = 'empezar';
+      return;
+    }
+    mostrarResultado(r);
+  } catch (e) {}
+}
+
+// ── compartir y QR ──────────────────────────────────────────────────
+function prepararCompartir() {
+  const texto = 'Te recomiendo VAO POS para organizar tu comercio (ventas, stock y fiados desde el celular). Probalo gratis 7 días: ' + URL_PUBLICA;
+  $('btnWhatsApp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
+  $('qrUrl').textContent = URL_PUBLICA;
+  try { new QRCode($('qr'), { text: URL_PUBLICA, width: 512, height: 512, colorDark: '#0D47A1', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); }
+  catch (e) { $('qr').textContent = 'No se pudo dibujar el QR. Usá "Copiar enlace".'; }
+}
+$('btnCopiar').addEventListener('click', async () => {
+  const b = $('btnCopiar');
+  try { await navigator.clipboard.writeText(URL_PUBLICA); }
+  catch (e) { const t = document.createElement('textarea'); t.value = URL_PUBLICA; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (x) {} t.remove(); }
+  b.textContent = 'Enlace copiado'; setTimeout(() => { b.textContent = 'Copiar enlace'; }, 2000);
+});
+$('btnBajarQR').addEventListener('click', () => {
+  const lienzo = $('qr').querySelector('canvas');
+  if (!lienzo) return;
+  // Con margen blanco alrededor, para que se escanee bien impreso.
+  const m = 48, c = document.createElement('canvas'); c.width = lienzo.width + m * 2; c.height = lienzo.height + m * 2;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(lienzo, m, m);
+  const a = document.createElement('a'); a.download = 'vao-pos-qr.png'; a.href = c.toDataURL('image/png'); a.click();
+});
+
+prepararCompartir();
+cargarPlanes().then(retomar);
+</script>
+</body>
+</html>
