@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-/* planes.html v1 (STAGING) — página pública de VAO POS. Precios y condiciones vienen del servidor. */
+/* planes.html v2 (STAGING) — página pública de VAO POS. Precios y condiciones vienen del servidor. */
 :root {
   --tinta:   #0D47A1;   /* azul VAO oscuro: títulos y texto fuerte */
   --azul:    #1E88E5;   /* azul VAO: acciones */
@@ -153,7 +153,7 @@ footer { padding: 26px 0 40px; font-size: .88rem; color: var(--suave); }
 <div class="col hero-cta">
   <a class="btn btn-principal" id="ctaPrincipal" href="#empezar">Empezar mi prueba gratis</a>
   <div class="chico">Sin tarjeta de crédito. Se crea al instante con tu correo.</div>
-  <div class="aviso-espera oculto" id="avisoEspera">Por el momento alcanzamos la capacidad de nuevas pruebas. Podés anotarte y te avisamos por correo cuando puedas comenzar.</div>
+  <div class="aviso-espera oculto" id="avisoEspera">En este momento las nuevas pruebas las habilita VAO Sistemas en forma manual. Podés anotarte en la lista de espera: si habilitan tu prueba, te llega un correo con el enlace para comenzar. No hay una fecha asegurada.</div>
 </div>
 
 <section>
@@ -228,7 +228,7 @@ footer { padding: 26px 0 40px; font-size: .88rem; color: var(--suave); }
     <!-- Lista de espera -->
     <div id="espera" class="oculto">
       <p class="msg info" id="textoEspera"></p>
-      <p class="chico">No hace falta que vuelvas a anotarte. Te escribimos al correo que confirmaste.</p>
+      <p class="chico">No hace falta que vuelvas a anotarte. Si VAO Sistemas habilita tu prueba, te escribimos al correo que confirmaste.</p>
     </div>
   </div>
 </section>
@@ -423,8 +423,10 @@ async function retomar() {
     solicitudId = id;
     if (r.enRevision) { mensaje(r.error, 'info'); return; }
     if (r.esperaCodigo) {
-      paso(2); $('textoCodigo').textContent = r.mensaje + (r.habilitada ? '' : '');
-      $('btnReenviar').disabled = false; $('btnReenviar').textContent = r.habilitada ? 'Enviarme el código' : 'Reenviar código';
+      paso(2); $('textoCodigo').textContent = r.mensaje;
+      // v2: invitación de Admin o alta cortada → el código nuevo se pide y llega al correo verificado
+      $('btnReenviar').disabled = false; $('btnReenviar').textContent = (r.habilitada || r.reanudar) ? 'Enviarme el código' : 'Reenviar código';
+      $('btnCambiar').classList.toggle('oculto', !!r.reanudar);
       if (q) location.hash = 'empezar';
       return;
     }
