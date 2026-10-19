@@ -409,6 +409,17 @@ body {
 .modulo-estado { display:block; font-size:0.72rem; color:var(--gris); }
 .modulo-fila input[type=checkbox], .plan-mods input[type=checkbox], .chk input { width:20px; height:20px; accent-color:var(--azul); }
 .plan-card { border:2px solid var(--borde); border-radius:14px; padding:14px; margin-bottom:12px; }
+/* V12: vigencia y pagos */
+.vp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:12px; }
+.vp-dato { background:#F3F7FC; border-radius:10px; padding:8px 10px; font-size:0.82rem; }
+.vp-dato > span { display:block; color:#607D8B; font-size:0.72rem; font-weight:700; text-transform:uppercase; }
+.vp-dato b { font-size:0.95rem; }
+.vp-caja { border:2px solid var(--borde); border-radius:12px; padding:12px; margin-bottom:12px; }
+.vp-caja h4 { margin:0 0 8px; font-size:0.95rem; }
+.vp-aviso { border-radius:10px; padding:10px; font-size:0.84rem; margin-bottom:10px; }
+.vp-hist { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.vp-hist td, .vp-hist th { border-bottom:1px solid #eee; padding:5px 4px; text-align:left; vertical-align:top; }
+.alerta-regularizar { background:#FFF8E1; border:1px solid #FFB300; color:#6D4C00; border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:0.86rem; }
 /* V11: pruebas y registros */
 .rg-cifras { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin-bottom:12px; }
 .rg-cifra { background:#F3F7FC; border-radius:12px; padding:10px; }
@@ -526,7 +537,7 @@ body {
     .stat-label { font-size: 0.6rem; margin-top: 0; white-space: nowrap; }
 
     /* Vigencia (col 4) y Acciones (col 7) no se muestran en la lista móvil:
-       Vigencia queda accesible igual desde la barra superior (📅 Vigencia),
+       Vigencia queda accesible igual desde la barra superior (💳 Vigencia),
        Acciones se reemplaza por la selección de fila + la barra. */
     .tabla-clientes th:nth-child(4), .tabla-clientes td:nth-child(4),
     .tabla-clientes th:nth-child(7), .tabla-clientes td:nth-child(7) { display: none; }
@@ -733,7 +744,7 @@ body {
                 <div id="barraAccionBotones" style="display:none;">
                     <button class="btn-accion" style="background:#E3F2FD;color:var(--azul-dark);" onclick="abrirPOS(clienteSeleccionadoPrefijo)">🖥️ POS</button>
                     <button class="btn-accion" id="btnBarraActivar" style="background:#FFEBEE;color:var(--rojo);" onclick="accionBarraToggleActivo()">🔒 Susp./Activ.</button>
-                    <button class="btn-accion" style="background:#FFF3E0;color:#E65100;" onclick="abrirModalVigencia(clienteSeleccionadoPrefijo)">📅 Vigencia</button>
+                    <button class="btn-accion" style="background:#FFF3E0;color:#E65100;" onclick="abrirModalVigencia(clienteSeleccionadoPrefijo)">💳 Vigencia</button>
                     <button class="btn-accion" style="background:#F3E5F5;color:#6A1B9A;" onclick="accionBarraResetPin()">🔑 PIN</button>
                     <button class="btn-accion" style="background:#EDE7F6;color:#4527A0;" onclick="abrirModalPlanCliente(clienteSeleccionadoPrefijo)">🧩 Plan</button>
                 </div>
@@ -816,28 +827,14 @@ body {
     </div>
 </div>
 
-<!-- Modal Vigencia (V8) -->
+<!-- V12: Modal Vigencia y pagos (reemplaza "📅 Renovar vigencia" de días manuales) -->
 <div class="modal-overlay" id="modalVigencia">
-    <div class="modal">
-        <div class="modal-titulo">📅 Renovar vigencia</div>
-        <p style="font-size:0.85rem;color:var(--gris,#666);margin:-8px 0 14px;">
-            Cliente: <strong id="vigenciaPrefijo"></strong> —
-            vencimiento actual: <span id="vigenciaFechaActual">—</span>
-        </p>
-        <div class="form-grupo">
-            <label class="form-label">Días a sumar</label>
-            <div style="display:flex;gap:8px;margin-bottom:8px;">
-                <button class="btn-cancelar" style="flex:1;" onclick="document.getElementById('vigenciaDias').value=7">7</button>
-                <button class="btn-cancelar" style="flex:1;" onclick="document.getElementById('vigenciaDias').value=30">30</button>
-                <button class="btn-cancelar" style="flex:1;" onclick="document.getElementById('vigenciaDias').value=90">90</button>
-            </div>
-            <input type="number" class="form-input" id="vigenciaDias" placeholder="Cantidad de días" min="1" step="1">
-        </div>
+    <div class="modal" style="max-width:720px;">
+        <div class="modal-titulo">💳 Vigencia y pagos — <span id="vigenciaPrefijo"></span></div>
+        <div id="vpContenido"><div class="ayuda">Cargando…</div></div>
         <div class="modal-footer">
-            <button class="btn-cancelar" onclick="cerrarModalVigencia()">Cancelar</button>
-            <button class="btn-primario btn-verde" onclick="confirmarVigencia()" id="btnVigencia" style="font-size:0.9rem;padding:13px;">
-                Renovar
-            </button>
+            <button class="btn-cancelar" onclick="cargarVigenciaPagos()">Actualizar</button>
+            <button class="btn-cancelar" onclick="cerrarModalVigencia()">Cerrar</button>
         </div>
     </div>
 </div>
@@ -893,7 +890,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 11;
+const APP_VERSION = 12;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -1065,7 +1062,7 @@ function renderClientes() {
         return;
     }
 
-    cont.innerHTML = `
+    cont.innerHTML = _alertaRegularizar() + `
     <table class="tabla-clientes">
         <thead>
             <tr>
@@ -1095,7 +1092,7 @@ function renderClientes() {
                         c.prueba.estado === 'GRACIA' ? '⏳ Gracia hasta ' + c.prueba.finGraciaTxt : '🔒 Prueba vencida (consulta)'}</span>` : `
                     <span class="badge ${c.vigente ? 'badge-activo' : 'badge-inactivo'}">
                         ${c.fechaVence ? (c.enTolerancia ? '⏳ En tolerancia, venció ' : c.vigente ? '📅 Vence ' : '⛔ Venció ') + new Date(c.fechaVence).toLocaleDateString('es-AR') : '— Sin vencimiento'}
-                    </span>`}
+                    </span>${_badgeComercial(c)}`}
                 </td>
                 <td>
                     <span class="badge ${c.tienePin ? 'badge-ok' : 'badge-pendiente'}">
@@ -1117,7 +1114,7 @@ function renderClientes() {
                         </button>
                         <button class="btn-accion"
                             style="background:#FFF3E0;color:#E65100;"
-                            onclick="abrirModalVigencia('${c.prefijo}')">📅 Vigencia</button>
+                            onclick="abrirModalVigencia('${c.prefijo}')">💳 Vigencia y pagos</button>
                         <button class="btn-accion"
                             style="background:#F3E5F5;color:#6A1B9A;"
                             onclick="resetPin('${c.prefijo}', '${(c.nombre || '').replace(/'/g, "\\'")}')">🔑 Reset PIN</button>
@@ -1365,7 +1362,7 @@ function _nombreModulo(clave) {
 function llenarSelectPlanes() {
     const sel = document.getElementById('altaPlan');
     const previo = sel.value;
-    const activos = (planesInfo.planes || []).filter(p => p.activo);
+    const activos = (planesInfo.planes || []).filter(p => p.activo && p.codigo === 'PRUEBA'); // V12: el alta es solo PRUEBA
     sel.innerHTML = !planesInfo.existe
         ? '<option value="">Primero creá los planes (🧩 Planes)</option>'
         : activos.map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + '</option>').join('');
@@ -1384,7 +1381,8 @@ function alCambiarPlanAlta() {
         dias.value = '7'; dias.disabled = true;
         const f = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('es-AR'); };
         ayuda.innerHTML = '🧪 <b>Prueba fija:</b> empieza hoy (' + f(0) + '), funciona hasta el <b>' + f(6) + '</b> (día 7) y tiene gracia hasta el <b>' + f(9) +
-            '</b> (día 10). Después queda en modo consulta. No se puede cambiar ni renovar. Pide teléfono o correo (una prueba por persona).<br>Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.map(_esc).join(', ') : '') + '.';
+            '</b> (día 10). Después queda en modo consulta. No se puede cambiar ni renovar. Pide teléfono o correo (una prueba por persona).<br>Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.map(_esc).join(', ') : '') + '.' +
+            '<br>💳 <b>Planes pagos</b> (Básico, Pro…): se activan después, registrando el pago confirmado en <b>💳 Vigencia y pagos</b>.';
         return;
     }
     dias.disabled = false;
@@ -1562,7 +1560,8 @@ async function confirmarCambioPlan() {
     box.style.display = 'block'; box.innerHTML = '<div class="ayuda">Calculando…</div>';
     try {
         const r = await _adminApi('previsualizarCambioPlan', { prefijo: pcPrefijo, plan });
-        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>' +
+            (r.requierePago ? '<button class="btn-accion" style="margin-top:6px;background:#E65100;color:white;" onclick="const pre=pcPrefijo; cerrarModalPlanCliente(); abrirModalVigencia(pre);">💳 Ir a Vigencia y pagos</button>' : ''); return; }
         _previaCambio = r;
         const lista = (t, arr, color) => arr.length ? '<div style="color:' + color + ';margin-top:4px;">' + t + ' <b>' + arr.map(_esc).join(', ') + '</b></div>' : '';
         box.innerHTML = '<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:10px;padding:10px;font-size:0.84rem;">' +
@@ -1595,10 +1594,7 @@ async function aplicarCambioPlan() {
         await cargarModulosCliente();
         await cargarClientes();
         _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
-        if (res.aviso) { // V8: al salir de PRUEBA hay que renovar la vigencia del plan nuevo
-            alert('ℹ️ ' + res.aviso);
-            const pre = pcPrefijo; cerrarModalPlanCliente(); abrirModalVigencia(pre);
-        }
+        if (res.aviso) alert('ℹ️ ' + res.aviso); // V12: ya no abre "Renovar días" (los planes pagos se extienden con 💳 Vigencia y pagos)
     } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
 }
 
@@ -1622,50 +1618,285 @@ async function toggleActivo(prefijo, estaActivo) {
     }
 }
 
-// ── VIGENCIA (V8) ─────────────────────────────────────────────────
-let vigenciaPrefijoActual = '';
+// ── VIGENCIA Y PAGOS (V12) ────────────────────────────────────────
+// Reemplaza "Renovar vigencia" (días manuales). Todo pasa por vista previa + confirmación;
+// el servidor vuelve a validar y calcula las fechas. Los pagos REALES siguen bloqueados:
+// en STAGING se registran pagos SIMULADOS (sin dinero real).
+let vigenciaPrefijoActual = '', _vpEstado = null, _vpPrevia = {}, _vpClave = '';
+
+const ESTADOS_COMERCIALES = {
+    VIGENTE:             ['✅ Vigente', '#2E7D32'],
+    EN_TOLERANCIA:       ['⏳ En tolerancia', '#E65100'],
+    VENCIDO:             ['⛔ Vencido', '#C62828'],
+    HISTORICO_SIN_FECHA: ['⚠️ Pendiente de regularizar (sin vencimiento)', '#B26A00'],
+    HISTORICO_CON_FECHA: ['⚠️ Pendiente de regularizar (fecha sin pago registrado)', '#B26A00'],
+    DESINCRONIZADO:      ['⚠️ Fecha Vence distinta del historial', '#C62828']
+};
+const MEDIOS_PAGO = [['TRANSFERENCIA', 'Transferencia'], ['MERCADO_PAGO', 'Mercado Pago'], ['EFECTIVO', 'Efectivo'], ['OTRO', 'Otro']];
+const TIPOS_REGISTRO = { PAGO: '💵 Pago', PAGO_SIMULADO: '🧪 Pago simulado', CORTESIA: '🎁 Cortesía (sin pago)', REGULARIZACION: '🛠️ Regularización', SINCRONIZACION: '🔄 Sincronización' };
+
+function _nuevaClave() {
+    try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    const a = new Uint8Array(16); crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+}
+function _hoyISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+// Lista de clientes: estado comercial (solo informa; no bloquea a nadie)
+function _badgeComercial(c) {
+    const k = c.comercial;
+    if (!k || k.tipo !== 'PAGO') return '';
+    let h = '';
+    if (k.historico) h += '<br><span class="badge badge-pendiente" title="Plan pago sin pago registrado: sigue operando. Regularizalo en 💳 Vigencia y pagos.">⚠️ Pendiente de regularizar</span>';
+    else if (k.estado === 'DESINCRONIZADO') h += '<br><span class="badge badge-inactivo">⚠️ Revisar fecha (historial)</span>';
+    else if (k.proximaRenovacion) h += '<br><span class="ayuda" style="font-size:0.72rem;">Renueva el ' + _esc(k.proximaRenovacion) + '</span>';
+    if (k.pagoEnCurso) h += '<br><span class="badge badge-inactivo">⏳ Pago a medio registrar</span>';
+    return h;
+}
+function _alertaRegularizar() {
+    const pend = clientesCargados.filter(c => c.comercial && c.comercial.tipo === 'PAGO' && c.comercial.historico);
+    const cortados = clientesCargados.filter(c => c.comercial && c.comercial.pagoEnCurso);
+    let h = '';
+    if (pend.length) h += '<div class="alerta-regularizar" id="alertaRegularizar">⚠️ <b>' + pend.length + (pend.length === 1 ? ' negocio pago pendiente' : ' negocios pagos pendientes') +
+        ' de regularizar</b>: ' + pend.map(c => '<a href="#" onclick="abrirModalVigencia(\'' + _esc(c.prefijo) + '\');return false;">' + _esc(c.prefijo) + '</a>' +
+        (c.comercial.estado === 'HISTORICO_SIN_FECHA' ? ' (sin vencimiento)' : ' (sin pago registrado)')).join(', ') +
+        '.<br><span style="font-size:0.8rem;">Siguen operando: no se bloquean ni cambia ninguna fecha sola. Regularizalos con motivo en 💳 Vigencia y pagos.</span></div>';
+    if (cortados.length) h += '<div class="alerta-regularizar" style="border-color:#E53935;background:#FFEBEE;color:#B71C1C;">⏳ Pago a medio registrar: ' +
+        cortados.map(c => '<a href="#" onclick="abrirModalVigencia(\'' + _esc(c.prefijo) + '\');return false;">' + _esc(c.prefijo) + '</a>').join(', ') + '. Abrí la ficha y completalo.</div>';
+    return h;
+}
 
 function abrirModalVigencia(prefijo) {
-    const c = clientesCargados.find(x => x.prefijo === prefijo);
-    if (c && c.plan === 'PRUEBA') { toast('La prueba gratuita no se renueva: pasá el negocio a Básico o Pro (🧩 Plan) y después renová.', 'rojo'); return; }
-    vigenciaPrefijoActual = prefijo;
+    if (!prefijo) return;
+    vigenciaPrefijoActual = prefijo; _vpEstado = null; _vpPrevia = {}; _vpClave = _nuevaClave();
     document.getElementById('vigenciaPrefijo').textContent = prefijo;
-    document.getElementById('vigenciaFechaActual').textContent =
-        (c && c.fechaVence) ? new Date(c.fechaVence).toLocaleDateString('es-AR') + (c.vigente ? ' (vigente)' : ' (vencida)') : 'sin vencimiento asignado';
-    document.getElementById('vigenciaDias').value = '';
+    document.getElementById('vpContenido').innerHTML = '<div class="ayuda">Cargando…</div>';
     document.getElementById('modalVigencia').classList.add('visible');
+    cargarVigenciaPagos();
 }
 
 function cerrarModalVigencia() {
     document.getElementById('modalVigencia').classList.remove('visible');
-    vigenciaPrefijoActual = '';
+    vigenciaPrefijoActual = ''; _vpEstado = null; _vpPrevia = {};
 }
 
-async function confirmarVigencia() {
-    const dias = parseInt(document.getElementById('vigenciaDias').value, 10);
-    if (!dias || dias <= 0) { toast('Ingresá una cantidad de días válida', 'rojo'); return; }
-
-    const btn = document.getElementById('btnVigencia');
-    btn.disabled = true;
-    btn.textContent = 'Renovando...';
-
+async function cargarVigenciaPagos() {
+    const pre = vigenciaPrefijoActual; if (!pre) return;
     try {
-        const payload = { token: tokenAdmin, prefijo: vigenciaPrefijoActual, dias: dias };
-        const data    = encodeURIComponent(JSON.stringify(payload));
-        const r       = await fetch(API_URL + '?action=renovarVigencia&data=' + data, { redirect: 'follow' });
-        const res     = await r.json();
+        const r = await _adminApi('estadoVigenciaCliente', { prefijo: pre });
+        if (pre !== vigenciaPrefijoActual) return;
+        if (r.error) { document.getElementById('vpContenido').innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        _vpEstado = r; _vpPrevia = {};
+        renderVigenciaPagos();
+    } catch (e) { document.getElementById('vpContenido').innerHTML = '<div class="ayuda">📡 Error de conexión. Tocá Actualizar.</div>'; }
+}
 
-        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+function _dato(t, v) { return '<div class="vp-dato"><span>' + t + '</span><b>' + v + '</b></div>'; }
 
-        toast('✅ Vigencia renovada hasta ' + new Date(res.fechaVence).toLocaleDateString('es-AR'), 'verde');
-        cerrarModalVigencia();
-        await cargarClientes();
-    } catch(e) {
-        toast('Error de conexión', 'rojo');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Renovar';
+function renderVigenciaPagos() {
+    const r = _vpEstado; if (!r) return;
+    const k = r.comercial || {};
+    const c = clientesCargados.find(x => x.prefijo === r.prefijo) || {};
+    const planNom = cod => ((planesInfo.planes || []).find(p => p.codigo === cod) || {}).nombre || cod || '—';
+    let h = '';
+
+    // Bloqueos que se resuelven primero
+    if (r.pagoEnCurso) h += '<div class="vp-aviso" style="background:#FFEBEE;border:1px solid #E57373;" id="vpPagoEnCurso">⏳ <b>Hay un pago a medio registrar</b> (se cortó el servidor). ' +
+        'Antes de cualquier otra cosa, completalo: no se duplica.<br><button class="btn-accion" style="margin-top:6px;background:#C62828;color:white;" onclick="vpRecuperar(this)">Revisar y completar el pago</button><div id="vpRecuperarBox"></div></div>';
+    if (r.cambioPlanPendiente) h += '<div class="vp-aviso" style="background:#FFEBEE;border:1px solid #E57373;">⚠️ Hay un <b>cambio de plan sin terminar</b>: resolvelo en 🧩 Plan → checkpoint antes de registrar movimientos.</div>';
+
+    // Resumen
+    if (r.plan === 'PRUEBA') {
+        const pr = r.prueba;
+        h += '<div class="vp-grid">' + _dato('Plan asignado', '🧪 Prueba gratuita') +
+            _dato('Estado', pr ? (pr.estado === 'ACTIVA' ? 'Activa hasta ' + _esc(pr.venceTxt) : pr.estado === 'GRACIA' ? 'Gracia hasta ' + _esc(pr.finGraciaTxt) : 'Vencida (consulta)') : (c.fechaVence ? 'Vence ' + new Date(c.fechaVence).toLocaleDateString('es-AR') : 'Sin regularizar')) +
+            _dato('Pago confirmado', 'sin pagos') + '</div>' +
+            '<div class="ayuda" style="margin-bottom:10px;">La prueba no se renueva ni se extiende. Para pasar a un plan pago, registrá el pago confirmado: el plan cambia y empieza su primer mes desde la fecha de confirmación.</div>';
+    } else {
+        const est = ESTADOS_COMERCIALES[k.estado] || [k.estado || '—', '#333'];
+        const up = k.ultimoPago;
+        h += '<div class="vp-grid">' +
+            _dato('Plan asignado', _esc(planNom(r.plan))) +
+            _dato('Estado de vigencia', '<span style="color:' + est[1] + ';" id="vpEstadoTxt">' + est[0] + '</span>') +
+            _dato('Último pago confirmado', up ? _esc(up.fecha) + ' · $' + Number(up.importe).toLocaleString('es-AR') + (up.simulado ? ' <span style="color:#6A1B9A;">(SIMULADO)</span>' : '') +
+                '<br><span style="font-weight:400;font-size:0.76rem;">' + _esc(up.medio || '') + (up.referencia ? ' · ref. ' + _esc(up.referencia) : '') + '</span>' : 'sin pagos registrados') +
+            _dato('Período actual', k.periodo ? (k.periodo.inicio ? _esc(k.periodo.inicio) + ' al ' : 'hasta el ') + _esc(k.periodo.fin) +
+                (k.periodo.tipo && k.periodo.tipo !== 'PAGO_SIMULADO' && k.periodo.tipo !== 'PAGO' ? '<br><span style="font-weight:400;font-size:0.76rem;">' + _esc(TIPOS_REGISTRO[k.periodo.tipo] || k.periodo.tipo) + '</span>' : '') : '—') +
+            _dato('Próxima renovación', k.proximaRenovacion ? _esc(k.proximaRenovacion) : '—') +
+            _dato('Fin del precio promocional', k.finPromo ? _esc(k.finPromo) : '— (sin oferta)') + '</div>';
+        if (k.historico) h += '<div class="vp-aviso" style="background:#FFF8E1;border:1px solid #FFB300;">⚠️ <b>PENDIENTE DE REGULARIZAR</b>: plan pago ' +
+            (k.estado === 'HISTORICO_SIN_FECHA' ? 'sin vencimiento' : 'con fecha pero sin pago registrado') + '. Sigue operando; nada cambia solo. ' +
+            'Regularizalo abajo (con motivo) o registrá un pago.</div>';
     }
+
+    // Sincronizar (Fecha Vence ≠ historial)
+    if (r.desincronizado) h += '<div class="vp-caja" style="border-color:#E57373;"><h4>🔄 La Fecha Vence de la planilla no coincide con el historial</h4>' +
+        '<div class="ayuda">Vale el historial de pagos. Escribí el motivo y revisá la vista previa.</div>' +
+        '<input class="form-input" id="vpSincMotivo" maxlength="200" placeholder="Motivo (ej.: edición manual de la planilla)">' +
+        '<button class="btn-accion" style="margin-top:6px;background:#1565C0;color:white;" onclick="vpPrevia(\'sincronizarVigencia\', this)">Vista previa</button><div id="vpBox_sincronizarVigencia"></div></div>';
+
+    // Registrar pago
+    h += '<div class="vp-caja"><h4>💵 Registrar pago confirmado' + (r.pagosSimulados ? ' <span style="color:#6A1B9A;">(SIMULADO · STAGING)</span>' : '') + '</h4>';
+    if (!r.pagosSimulados) {
+        h += '<div class="ayuda" id="vpPagoBloqueado">🔒 Bloqueado: los pagos reales se habilitan cuando el contrato digital esté implementado y revisado. No se registra nada.</div>';
+    } else if (!(r.contratables || []).length) {
+        h += '<div class="ayuda">No hay planes pagos contratables en PLANES_VAO.</div>';
+    } else {
+        const def = (r.contratables.find(p => p.codigo === r.plan) || r.contratables[0]);
+        h += '<div class="ayuda" style="margin-bottom:6px;">Sin dinero real. Un pago = <b>un mes calendario</b>. Si todavía está vigente, el mes nuevo empieza al terminar el actual; si venció (o viene de PRUEBA), empieza hoy. ' +
+            'Elegir otro plan acá lo cambia <b>al confirmar este pago</b> (sin prorrateo).</div>' +
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Plan que paga</label><select class="form-input" id="vpPlan" onchange="vpPrecioDePlan()">' +
+            r.contratables.map(p => '<option value="' + _esc(p.codigo) + '"' + (p.codigo === def.codigo ? ' selected' : '') + '>' + _esc(p.nombre) + (p.precioRegular ? ' — $' + Number(p.precioRegular).toLocaleString('es-AR') : '') + '</option>').join('') + '</select></div>' +
+            '<div class="form-grupo"><label class="form-label">Importe recibido ($)</label><input class="form-input" id="vpImporte" inputmode="numeric" maxlength="9" value="' + (def.precioRegular || '') + '"></div></div>' +
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Medio</label><select class="form-input" id="vpMedio">' + MEDIOS_PAGO.map(m => '<option value="' + m[0] + '">' + m[1] + '</option>').join('') + '</select></div>' +
+            '<div class="form-grupo"><label class="form-label">Fecha del pago</label><input type="date" class="form-input" id="vpFechaPago" max="' + _hoyISO() + '" value="' + _hoyISO() + '"></div></div>' +
+            '<div class="form-grupo"><label class="form-label">Referencia (opcional)</label><input class="form-input" id="vpReferencia" maxlength="80" placeholder="N.º de operación o comprobante"></div>' +
+            '<button class="btn-accion" id="vpBtnPagoPrevia" style="background:#2E7D32;color:white;" onclick="vpPrevia(\'confirmarPagoRecibido\', this)">Vista previa del pago</button><div id="vpBox_confirmarPagoRecibido"></div>';
+    }
+    h += '</div>';
+
+    if (r.plan !== 'PRUEBA') {
+        // Cortesía
+        h += '<div class="vp-caja"><h4>🎁 Cortesía sin pago (1 a 7 días)</h4>';
+        h += r.puedeCortesia
+            ? '<div class="ayuda" style="margin-bottom:6px;">No es un pago, no cambia el plan ni consume promociones. Máximo una por período contratado; no se encadenan.</div>' +
+              '<div class="form-fila"><div class="form-grupo" style="max-width:120px;"><label class="form-label">Días</label><select class="form-input" id="vpCortesiaDias">' + [1,2,3,4,5,6,7].map(n => '<option>' + n + '</option>').join('') + '</select></div>' +
+              '<div class="form-grupo"><label class="form-label">Motivo</label><input class="form-input" id="vpCortesiaMotivo" maxlength="200" placeholder="Ej.: demora del banco en acreditar"></div></div>' +
+              '<button class="btn-accion" style="background:#6A1B9A;color:white;" onclick="vpPrevia(\'registrarCortesia\', this)">Vista previa</button><div id="vpBox_registrarCortesia"></div>'
+            : '<div class="ayuda" id="vpCortesiaNo">' + (k.historico ? 'Primero regularizá o registrá un pago (la cortesía es sobre un período contratado).' : 'Ya se usó la cortesía de este período (máximo una; no se encadenan).') + '</div>';
+        h += '</div>';
+        // Regularizar
+        if (r.puedeRegularizar) {
+            h += '<div class="vp-caja" style="border-color:#FFB300;"><h4>🛠️ Regularizar vigencia (sin pago registrado)</h4>' +
+                '<div class="ayuda" style="margin-bottom:6px;">Para negocios pagos anteriores a v033. No inventa pagos: fija el fin del período que VAO ya conoce, con motivo. Como máximo hasta el <b>' +
+                new Date(r.limiteRegularizar + 'T12:00:00').toLocaleDateString('es-AR') + '</b> (un mes calendario). Más allá, registrá pagos.</div>' +
+                '<div class="form-fila"><div class="form-grupo"><label class="form-label">Vigente hasta (incluido)</label><input type="date" class="form-input" id="vpRegFin" max="' + _esc(r.limiteRegularizar) + '"></div>' +
+                '<div class="form-grupo"><label class="form-label">Desde (opcional)</label><input type="date" class="form-input" id="vpRegInicio"></div></div>' +
+                '<div class="form-grupo"><label class="form-label">Motivo</label><input class="form-input" id="vpRegMotivo" maxlength="200" placeholder="Ej.: cliente al día según acuerdo de octubre"></div>' +
+                '<button class="btn-accion" style="background:#E65100;color:white;" onclick="vpPrevia(\'regularizarVigencia\', this)">Vista previa</button><div id="vpBox_regularizarVigencia"></div></div>';
+        }
+    }
+
+    // Historial
+    const hist = r.historial || [];
+    h += '<div class="vp-caja"><h4>📜 Historial (' + hist.length + ')</h4>' + (hist.length ? '<div style="overflow-x:auto;"><table class="vp-hist"><thead><tr><th>Tipo</th><th>Plan</th><th>Período</th><th>Detalle</th></tr></thead><tbody>' +
+        hist.map(x => '<tr><td>' + _esc(TIPOS_REGISTRO[x.tipo] || x.tipo) + (x.ciclo ? '<br><span class="ayuda">' + _esc(x.ciclo) + '</span>' : '') + '</td><td>' + _esc(x.plan) + '</td><td>' +
+            (x.inicio ? _esc(x.inicio) + ' → ' : 'hasta ') + _esc(x.fin) + '</td><td>' +
+            (x.importe ? '$' + Number(x.importe).toLocaleString('es-AR') + ' · ' + _esc(x.medio) + (x.referencia ? ' · ' + _esc(x.referencia) : '') : '') +
+            (x.motivo ? (x.importe ? '<br>' : '') + _esc(x.motivo) : '') + '<br><span class="ayuda">' + _esc(x.admin || '') + '</span></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="ayuda">Sin registros todavía.</div>') + '</div>';
+
+    document.getElementById('vpContenido').innerHTML = h;
+}
+
+function vpPrecioDePlan() {
+    const p = (_vpEstado.contratables || []).find(x => x.codigo === document.getElementById('vpPlan').value);
+    if (p && p.precioRegular) document.getElementById('vpImporte').value = p.precioRegular;
+}
+
+function _vpDatos(accion) {
+    const v = id => (document.getElementById(id) || {}).value || '';
+    if (accion === 'confirmarPagoRecibido') return { plan: v('vpPlan'), importe: v('vpImporte').replace(/\D/g, ''), medio: v('vpMedio'), fechaPago: v('vpFechaPago'), referencia: v('vpReferencia').trim(), clave: _vpClave };
+    if (accion === 'registrarCortesia')     return { dias: v('vpCortesiaDias'), motivo: v('vpCortesiaMotivo').trim() };
+    if (accion === 'regularizarVigencia')   return { fin: v('vpRegFin'), inicio: v('vpRegInicio'), motivo: v('vpRegMotivo').trim() };
+    if (accion === 'sincronizarVigencia')   return { motivo: v('vpSincMotivo').trim() };
+    return {};
+}
+
+function _vpResumenPrevia(accion, r) {
+    const L = (t, v) => '<div>' + t + ': <b>' + v + '</b></div>';
+    if (accion === 'confirmarPagoRecibido') return '<div style="font-weight:800;margin-bottom:4px;">' + (r.planActual === r.planNuevo ? 'Renovación de ' : 'Pago de ') + _esc(r.planNombre) + '</div>' +
+        L('Período', _esc(r.inicio) + ' al ' + _esc(r.fin) + ' (incluido)') + L('Próxima renovación', _esc(r.proxima)) +
+        L('Tipo', r.ciclo === 'RENOVACION' ? 'renovación encadenada (sin superponer ni perder días)' : 'ciclo nuevo desde hoy') +
+        L('Importe', '$' + Number(r.importe).toLocaleString('es-AR') + ' · ' + _esc(r.medio) + (r.referencia ? ' · ref. ' + _esc(r.referencia) : '')) +
+        (r.planActual !== r.planNuevo ? L('Plan', _esc(r.planActual) + ' → ' + _esc(r.planNuevo)) : '') +
+        (r.seActivan && r.seActivan.length ? '<div style="color:#2E7D32;">✅ Se activan: <b>' + r.seActivan.map(_esc).join(', ') + '</b></div>' : '') +
+        (r.seDesactivan && r.seDesactivan.length ? '<div style="color:#C62828;">⛔ Se desactivan: <b>' + r.seDesactivan.map(_esc).join(', ') + '</b></div>' : '') +
+        (r.avisos || []).map(a => '<div style="color:#E65100;">ℹ️ ' + _esc(a) + '</div>').join('');
+    if (accion === 'registrarCortesia') return L('Cortesía', r.dias + (r.dias === 1 ? ' día' : ' días') + ': del ' + _esc(r.inicio) + ' al ' + _esc(r.fin)) + L('Motivo', _esc(r.motivo)) + '<div style="color:#E65100;">ℹ️ ' + _esc(r.aviso) + '</div>';
+    if (accion === 'regularizarVigencia') return L('Vencimiento hoy', _esc(r.venceActual)) + L('Queda vigente hasta', _esc(r.fin) + (r.inicio ? ' (desde ' + _esc(r.inicio) + ')' : '')) + L('Motivo', _esc(r.motivo)) +
+        '<div style="color:#E65100;">' + _esc(r.aviso) + '</div>';
+    if (accion === 'sincronizarVigencia') return L('En la planilla', _esc(r.enPlanilla)) + L('Según el historial', _esc(r.segunHistorial)) + '<div style="color:#E65100;">ℹ️ ' + _esc(r.aviso) + '</div>';
+    return '';
+}
+
+async function vpPrevia(accion, btn) {
+    const box = document.getElementById('vpBox_' + accion);
+    const d = _vpDatos(accion);
+    if (accion === 'confirmarPagoRecibido' && !/^\d+$/.test(d.importe)) { toast('Ingresá el importe (sin puntos)', 'rojo'); return; }
+    if ((accion === 'registrarCortesia' || accion === 'regularizarVigencia' || accion === 'sincronizarVigencia') && d.motivo.length < 5) { toast('Escribí el motivo (mínimo 5 caracteres)', 'rojo'); return; }
+    if (accion === 'regularizarVigencia' && !d.fin) { toast('Elegí la fecha hasta la que queda vigente', 'rojo'); return; }
+    btn.disabled = true; box.innerHTML = '<div class="ayuda">Calculando…</div>';
+    try {
+        const r = await _adminApi(accion, Object.assign({ prefijo: vigenciaPrefijoActual }, d));
+        if (r.error) {
+            box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>';
+            if (r.pagoEnCurso) await cargarVigenciaPagos();
+            return;
+        }
+        if (r.yaRegistrado) { box.innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(r.mensaje) + '</div>'; _vpClave = _nuevaClave(); await _vpTrasConfirmar(); return; }
+        _vpPrevia[accion] = { datos: d, firma: r.firma };
+        box.innerHTML = '<div class="vp-aviso" style="background:#E3F2FD;border:1px solid #90CAF9;margin-top:8px;">' + _vpResumenPrevia(accion, r) +
+            '<div class="ayuda" style="margin-top:4px;">Nada se guardó todavía.</div>' +
+            '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'vpBox_' + accion + '\').innerHTML=\'\'">Cancelar</button>' +
+            '<button class="btn-accion" id="vpConf_' + accion + '" style="background:var(--verde);color:white;" onclick="vpConfirmar(\'' + accion + '\', this)">✅ Confirmar</button></div></div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">📡 Error de conexión. No se guardó nada.</div>'; }
+    finally { btn.disabled = false; }
+}
+
+async function vpConfirmar(accion, btn) {
+    const pv = _vpPrevia[accion]; if (!pv) return;
+    const box = document.getElementById('vpBox_' + accion);
+    // si cambió algo del formulario después de la vista previa, se pide una vista previa nueva
+    if (JSON.stringify(_vpDatos(accion)) !== JSON.stringify(pv.datos)) { box.innerHTML = '<div class="ayuda" style="color:#E65100;">Cambiaste datos después de la vista previa: volvé a tocar Vista previa.</div>'; delete _vpPrevia[accion]; return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+    try {
+        const r = await _adminApi(accion, Object.assign({ prefijo: vigenciaPrefijoActual, confirmar: true, firma: pv.firma }, pv.datos));
+        if (r.error) {
+            // la ficha se vuelve a leer: si algo quedó a medio hacer, aparece arriba para completarlo
+            delete _vpPrevia[accion];
+            toast('Error: ' + r.error, 'rojo');
+            await cargarVigenciaPagos(); await cargarClientes();
+            const b2 = document.getElementById('vpBox_' + accion);
+            if (b2) b2.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>';
+            return;
+        }
+        toast(r.mensaje || '✅ Listo', 'verde');
+        if (accion === 'confirmarPagoRecibido') _vpClave = _nuevaClave(); // la próxima operación es otra
+        await _vpTrasConfirmar();
+    } catch (e) {
+        // sin respuesta: puede haberse guardado o no. Con el pago, la misma clave evita duplicar.
+        box.innerHTML = '<div class="ayuda" style="color:#E65100;">📡 Sin respuesta del servidor. ' +
+            (accion === 'confirmarPagoRecibido' ? 'Tocá <b>Confirmar</b> de nuevo: si ya se había registrado, no se duplica.' : 'Tocá Actualizar para ver si quedó registrado antes de repetir.') + '</div>' +
+            (accion === 'confirmarPagoRecibido' ? '<button class="btn-accion" id="vpConf_' + accion + '" style="margin-top:6px;background:var(--verde);color:white;" onclick="vpConfirmar(\'' + accion + '\', this)">✅ Confirmar de nuevo</button>' : '');
+    }
+}
+
+async function _vpTrasConfirmar() {
+    await cargarClientes();
+    await cargarVigenciaPagos();
+}
+
+async function vpRecuperar(btn) {
+    const box = document.getElementById('vpRecuperarBox');
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarPagoEnCurso', { prefijo: vigenciaPrefijoActual });
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        box.innerHTML = '<div class="ayuda" style="margin-top:6px;">' + _esc(r.mensaje) + '</div>' +
+            '<button class="btn-accion" id="vpRecConfirmar" style="margin-top:6px;background:#2E7D32;color:white;" onclick="vpRecuperarConfirmar(this)">✅ Completar el pago</button>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">📡 Error de conexión</div>'; }
+    finally { btn.disabled = false; }
+}
+
+async function vpRecuperarConfirmar(btn) {
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarPagoEnCurso', { prefijo: vigenciaPrefijoActual, confirmar: true });
+        if (r.error) { toast('Error: ' + r.error, 'rojo'); btn.disabled = false; return; }
+        toast(r.mensaje, 'verde');
+        await _vpTrasConfirmar();
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
 }
 
 // ── RESET PIN (V9) ──────────────────────────────────────────────────
