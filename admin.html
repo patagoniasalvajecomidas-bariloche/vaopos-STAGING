@@ -890,7 +890,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -905,7 +905,13 @@ const LS_TOKEN_EXP = 'vao_admin_token_exp';
 let tokenAdmin = '';
 let clientesCargados = [];
 // V6: planes y regla de prefijo vienen del servidor (una sola regla para los dos lados)
-let planesInfo = { existe: false, planes: [], modulosImplementados: [], reglasPrefijo: { patron: '^[A-Z]{2,3}$', reservados: ['VAO'] } };
+// V13: estado de la consulta de planes. Mientras no sea 'OK', "existe: false" NO significa que la hoja no exista.
+let planesInfo = { estado: 'CARGANDO', existe: false, planes: [], modulosImplementados: [], reglasPrefijo: { patron: '^[A-Z]{2,3}$', reservados: ['VAO'] } };
+let _planesSeq = 0, _planesError = '', _creandoPlanes = false;
+const PLANES_TIMEOUT_MS = 20000;
+function _textoPlanesNoListos() {
+    return planesInfo.estado === 'ERROR' ? 'Error de conexión: no se pudieron consultar los planes. Reintentá desde 🧩 Planes.' : 'Consultando planes…';
+}
 
 function _esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1198,6 +1204,11 @@ function _altaTieneDatos() {
 }
 
 function abrirModalAlta() {
+    if (planesInfo.estado !== 'OK') {           // V13: todavía no se sabe (o falló la consulta)
+        toast(_textoPlanesNoListos(), planesInfo.estado === 'ERROR' ? 'rojo' : '');
+        if (planesInfo.estado === 'ERROR') cargarPlanes();
+        return;
+    }
     if (!planesInfo.existe) {
         toast('Primero creá los planes (botón 🧩 Planes)', 'rojo');
         abrirModalPlanes();
@@ -1347,11 +1358,28 @@ async function crearCliente() {
 
 // ── PLANES (V6) ───────────────────────────────────────────────────
 async function cargarPlanes() {
+    const seq = ++_planesSeq;
+    const teniaDatos = planesInfo.estado === 'OK';
+    if (!teniaDatos) { planesInfo.estado = 'CARGANDO'; _redibujarPlanesAbierto(); }
+    let res = null, error = '';
     try {
-        const res = await _adminApi('getPlanes');
-        if (!res.error) planesInfo = res;
-    } catch (e) {}
+        res = await Promise.race([
+            _adminApi('getPlanes'),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), PLANES_TIMEOUT_MS))
+        ]);
+        if (!res || res.error || res.success !== true || typeof res.existe !== 'boolean') error = (res && res.error) || 'respuesta inválida';
+    } catch (e) { error = e && e.message === 'timeout' ? 'el servidor no respondió a tiempo' : 'sin conexión'; }
+    if (seq !== _planesSeq) return;                       // llegó tarde: ya hay una consulta más nueva
+    if (!error) { planesInfo = Object.assign({}, res, { estado: 'OK' }); _planesError = ''; }
+    else if (teniaDatos) { toast('No se pudieron actualizar los planes (' + error + '). Se muestran los últimos datos.', 'rojo'); }
+    else { planesInfo = Object.assign({}, planesInfo, { estado: 'ERROR', existe: false, planes: [] }); _planesError = error; }
     llenarSelectPlanes();
+    _redibujarPlanesAbierto();
+}
+
+function _redibujarPlanesAbierto() {
+    const m = document.getElementById('modalPlanes');
+    if (m && m.classList.contains('visible')) renderPlanes();
 }
 
 function _nombreModulo(clave) {
@@ -1363,7 +1391,9 @@ function llenarSelectPlanes() {
     const sel = document.getElementById('altaPlan');
     const previo = sel.value;
     const activos = (planesInfo.planes || []).filter(p => p.activo && p.codigo === 'PRUEBA'); // V12: el alta es solo PRUEBA
-    sel.innerHTML = !planesInfo.existe
+    sel.innerHTML = planesInfo.estado !== 'OK'
+        ? '<option value="">' + _esc(_textoPlanesNoListos()) + '</option>'
+        : !planesInfo.existe
         ? '<option value="">Primero creá los planes (🧩 Planes)</option>'
         : activos.map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + '</option>').join('');
     if (activos.some(p => p.codigo === previo)) sel.value = previo;
@@ -1401,7 +1431,17 @@ function cerrarModalPlanes() {
 
 function renderPlanes() {
     const cont = document.getElementById('planesContenido');
-    if (!planesInfo.existe) {
+    if (planesInfo.estado === 'CARGANDO') {
+        cont.innerHTML = '<div class="ayuda" id="planesEstado" style="padding:18px 0;text-align:center;font-size:0.95rem;"><span class="spinner"></span> Consultando planes…</div>';
+        return;
+    }
+    if (planesInfo.estado !== 'OK') {
+        cont.innerHTML = '<div class="ayuda" id="planesEstado" style="padding:14px 0;color:var(--rojo);font-size:0.92rem;">❌ Error de conexión. No se pudieron consultar los planes' +
+            (_planesError ? ' (' + _esc(_planesError) + ')' : '') + '.<br>No se muestra ni se cambia nada hasta tener la respuesta del servidor.</div>' +
+            '<button class="btn-primario" id="btnReintentarPlanes" onclick="cargarPlanes()">Reintentar</button>';
+        return;
+    }
+    if (!planesInfo.existe) {   // V13: el servidor CONFIRMÓ que PLANES_VAO no existe
         cont.innerHTML = '<p class="ayuda" style="font-size:0.85rem;">Todavía no hay tabla de planes. Se crea la hoja <b>PLANES_VAO</b> con PRUEBA, BÁSICO y PRO; después podés editar cada uno acá. No se modifica ninguna hoja existente.</p>' +
             '<div id="planesPrevia" class="ayuda" style="margin:10px 0 14px;">Calculando qué cambia para los negocios actuales…</div>' +
             '<button class="btn-primario btn-verde" id="btnInitPlanes" onclick="crearPlanesIniciales()">Crear planes iniciales</button>';
@@ -1460,17 +1500,19 @@ function _nombreModuloPrevia(clave) {
 }
 
 async function crearPlanesIniciales() {
+    if (_creandoPlanes || planesInfo.estado !== 'OK' || planesInfo.existe) return;   // V13: solo si el servidor confirmó que no existe
     if (_previaPlanes && _previaPlanes.impacto.some(i => i.pierde.length) &&
         !confirm('Hay negocios que dejarían de usar módulos que hoy tienen encendidos (ver la lista).\n\n¿Crear los planes igual?')) return;
     const btn = document.getElementById('btnInitPlanes');
-    btn.disabled = true; btn.textContent = 'Creando...';
+    _creandoPlanes = true; btn.disabled = true; btn.textContent = 'Creando...';
     try {
-        const res = await _adminApi('inicializarPlanes');
-        if (res.error) { toast('Error: ' + res.error, 'rojo'); }
-        else { planesInfo = res; toast('✅ Planes creados', 'verde'); }
-    } catch (e) { toast('Error de conexión', 'rojo'); }
+        const res = await _adminApi('inicializarPlanes', { confirmar: true });
+        if (res.error) toast('Error: ' + res.error, 'rojo');
+        else toast('✅ Planes creados', 'verde');
+    } catch (e) { toast('Error de conexión: se vuelve a consultar el servidor', 'rojo'); }
+    finally { _creandoPlanes = false; }
+    planesInfo.estado = 'CARGANDO';   // se muestra lo que diga el servidor, no lo que se supone
     await cargarPlanes();
-    renderPlanes();
 }
 
 async function guardarPlanUI(codigo) {
@@ -1502,7 +1544,7 @@ async function abrirModalPlanCliente(prefijo) {
     sel.innerHTML = (planesInfo.planes || []).filter(p => (p.activo || p.codigo === c.plan) && (p.codigo !== 'PRUEBA' || c.plan === 'PRUEBA')) // V8: no se vuelve a PRUEBA
         .map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + (p.activo ? '' : ' (inactivo)') + '</option>').join('');
     document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Cargando…</div>';
-    document.getElementById('pcPlanAyuda').textContent = planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).';
+    document.getElementById('pcPlanAyuda').textContent = planesInfo.estado !== 'OK' ? _textoPlanesNoListos() : (planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).');
     _renderPruebaCliente(c);
     document.getElementById('pcCambio').style.display = 'none'; _previaCambio = null;
     document.getElementById('pcCheckpoint').innerHTML = '';

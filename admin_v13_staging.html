@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[STAGING] VAO Admin · SmartPOS</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --azul:       #1E88E5;
+    --azul-dark:  #0D47A1;
+    --azul-deep:  #0A2472;
+    --verde:      #43B02A;
+    --naranja:    #FF8C00;
+    --rojo:       #C62828;
+    --gris:       #607080;
+    --fondo:      #F0F4F8;
+    --blanco:     #FFFFFF;
+    --texto:      #111827;
+    --borde:      #DDE3EA;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--fondo);
+    color: var(--texto);
+    min-height: 100vh;
+    overscroll-behavior-y: contain;
+}
+
+/* ── LOGIN ─────────────────────────────────────────────────────── */
+#panelLogin {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, var(--azul-deep) 0%, var(--azul-dark) 50%, #1a3a7a 100%);
+    padding: 24px;
+}
+
+.login-card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+}
+
+.login-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 32px;
+    gap: 8px;
+}
+
+.login-logo svg { width: 120px; height: auto; }
+
+.login-logo-titulo {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--azul-dark);
+    letter-spacing: 0.5px;
+}
+
+.login-logo-sub {
+    font-size: 0.75rem;
+    color: var(--gris);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.login-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gris);
+    margin-bottom: 6px;
+    display: block;
+}
+
+.login-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--borde);
+    border-radius: 12px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 3px;
+    font-weight: 700;
+    color: var(--texto);
+}
+
+.login-input:focus { border-color: var(--azul); }
+
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, var(--azul-dark), var(--azul));
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 20px;
+    letter-spacing: 0.5px;
+    transition: opacity 0.2s;
+}
+
+.login-btn:active { opacity: 0.85; }
+
+.login-error {
+    background: #FFEBEE;
+    color: var(--rojo);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 14px;
+    display: none;
+    text-align: center;
+}
+
+/* ── ADMIN PANEL ───────────────────────────────────────────────── */
+#panelAdmin { display: none; }
+
+.header {
+    background: linear-gradient(135deg, var(--azul-deep) 0%, var(--azul-dark) 50%, var(--azul) 100%);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-logo svg { width: 52px; height: auto; }
+
+.header-info { line-height: 1.3; }
+
+.header-titulo {
+    font-size: 1rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0.3px;
+}
+
+.header-sub {
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-logout {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* ── CONTENIDO ─────────────────────────────────────────────────── */
+.contenido {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+}
+
+/* Stats rápidas */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 14px;
+    padding: 18px 16px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.stat-numero {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--azul-dark);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--gris);
+    margin-top: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Secciones */
+.seccion {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.seccion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.seccion-titulo {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--azul-dark);
+}
+
+.btn-primario {
+    background: var(--azul);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.2s;
+}
+
+.btn-primario:active { opacity: 0.8; }
+
+.btn-verde { background: var(--verde); }
+.btn-rojo  { background: var(--rojo); }
+
+/* Tabla clientes */
+.tabla-clientes { width: 100%; border-collapse: collapse; }
+
+.tabla-clientes th {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--gris);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--borde);
+    text-align: left;
+}
+
+.tabla-clientes td {
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--borde);
+    font-size: 0.88rem;
+    vertical-align: middle;
+}
+
+.tabla-clientes tr:last-child td { border-bottom: none; }
+.tabla-clientes tr:hover td { background: #F7F9FC; }
+
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.badge-activo    { background: #E8F5E9; color: #2E7D32; }
+.badge-inactivo  { background: #FFEBEE; color: var(--rojo); }
+.badge-ok        { background: #E3F2FD; color: var(--azul-dark); }
+.badge-pendiente { background: #FFF9C4; color: #827717; }
+
+.prefijo-tag {
+    font-family: monospace;
+    font-weight: 900;
+    font-size: 0.95rem;
+    color: var(--azul-dark);
+    background: #E3F2FD;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.acciones {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.btn-accion {
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+}
+
+.btn-accion:active { opacity: 0.7; }
+
+/* Modal alta cliente */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    /* V7: ocupa solo la parte visible (el teclado del celular no tapa la ventana) */
+    left: 0; right: 0;
+    top: var(--vv-top, 0px);
+    height: var(--vv-alto, 100%);
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-overlay.visible { display: flex; }
+
+.modal {
+    background: white;
+    border-radius: 20px;
+    padding: 28px 24px;
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(var(--vv-alto, 100vh) * 0.92);
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+}
+
+.modal-titulo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--azul-dark);
+    margin-bottom: 20px;
+}
+
+.form-grupo { margin-bottom: 14px; }
+
+.form-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--gris);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.form-input, .form-select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid var(--borde);
+    border-radius: 10px;
+    font-size: 0.92rem;
+    outline: none;
+    color: var(--texto);
+    transition: border-color 0.2s;
+    background: white;
+}
+
+.form-input:focus, .form-select:focus { border-color: var(--azul); }
+
+.form-input.error { border-color: var(--rojo); }
+
+.prefijo-check {
+    font-size: 0.78rem;
+    margin-top: 4px;
+    font-weight: 600;
+    min-height: 18px;
+}
+
+.prefijo-ok  { color: var(--verde); }
+.prefijo-neutro { color: var(--gris); }
+
+/* V6: planes y módulos */
+.badge-plan { background:#EDE7F6; color:#4527A0; font-size:0.66rem; padding:2px 7px; border-radius:8px; font-weight:800; margin-left:6px; vertical-align:middle; white-space:nowrap; }
+.aviso-revisar { display:block; font-size:0.7rem; color:#E65100; font-weight:700; margin-top:2px; white-space:normal; }
+.modulo-fila { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--borde); font-size:0.86rem; }
+.modulo-fila:last-child { border-bottom:none; }
+.modulo-estado { display:block; font-size:0.72rem; color:var(--gris); }
+.modulo-fila input[type=checkbox], .plan-mods input[type=checkbox], .chk input { width:20px; height:20px; accent-color:var(--azul); }
+.plan-card { border:2px solid var(--borde); border-radius:14px; padding:14px; margin-bottom:12px; }
+/* V12: vigencia y pagos */
+.vp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:12px; }
+.vp-dato { background:#F3F7FC; border-radius:10px; padding:8px 10px; font-size:0.82rem; }
+.vp-dato > span { display:block; color:#607D8B; font-size:0.72rem; font-weight:700; text-transform:uppercase; }
+.vp-dato b { font-size:0.95rem; }
+.vp-caja { border:2px solid var(--borde); border-radius:12px; padding:12px; margin-bottom:12px; }
+.vp-caja h4 { margin:0 0 8px; font-size:0.95rem; }
+.vp-aviso { border-radius:10px; padding:10px; font-size:0.84rem; margin-bottom:10px; }
+.vp-hist { width:100%; border-collapse:collapse; font-size:0.78rem; }
+.vp-hist td, .vp-hist th { border-bottom:1px solid #eee; padding:5px 4px; text-align:left; vertical-align:top; }
+.alerta-regularizar { background:#FFF8E1; border:1px solid #FFB300; color:#6D4C00; border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:0.86rem; }
+/* V11: pruebas y registros */
+.rg-cifras { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin-bottom:12px; }
+.rg-cifra { background:#F3F7FC; border-radius:12px; padding:10px; }
+.rg-cifra b { display:block; font-size:1.45rem; color:#0D47A1; line-height:1.1; }
+.rg-cifra span { font-size:0.78rem; color:#555; }
+.rg-cifra.alerta { background:#FFF4E5; } .rg-cifra.alerta b { color:#B25E00; }
+.rg-filtros { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 8px; }
+.rg-filtros button { border:2px solid var(--borde); background:#fff; border-radius:999px; padding:5px 12px; font-weight:700; cursor:pointer; font-family:inherit; font-size:0.82rem; }
+.rg-filtros button.activo { background:#0D47A1; color:#fff; border-color:#0D47A1; }
+.rg-sol { border:1px solid var(--borde); border-radius:12px; padding:10px 12px; margin-bottom:8px; font-size:0.84rem; }
+.rg-sol .est { font-weight:800; border-radius:6px; padding:1px 7px; font-size:0.75rem; }
+.est-ACTIVADA { background:#E8F5E9; color:#2E7D32; } .est-LISTA_ESPERA { background:#FFF4E5; color:#B25E00; } .est-ERROR, .est-CREANDO { background:#FDECEA; color:#C62828; }
+.est-DUPLICADO { background:#FCE4EC; color:#AD1457; } .est-CODIGO_ENVIADO, .est-HABILITADA { background:#E3F2FD; color:#0D47A1; } .est-RECHAZADA { background:#ECEFF1; color:#455A64; }
+.rg-conf { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.plan-card h4 { margin:0 0 10px; font-size:0.95rem; color:var(--azul-dark); }
+.plan-mods { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin:8px 0 12px; font-size:0.82rem; }
+.plan-mods label, .chk { display:flex; align-items:center; gap:6px; font-size:0.84rem; }
+.ayuda { font-size:0.75rem; color:var(--gris); margin-top:4px; line-height:1.35; }
+.botones-seccion { display:flex; gap:8px; flex-wrap:wrap; }
+.aviso-borrador { display:flex; justify-content:space-between; align-items:center; gap:8px; background:#FFF8E1; border:1px solid #FFE082; color:#795548; border-radius:10px; padding:8px 10px; font-size:0.78rem; margin:-6px 0 14px; }
+.aviso-borrador button { border:none; background:none; color:#C62828; font-weight:800; cursor:pointer; font-size:0.78rem; white-space:nowrap; }
+@media (max-width: 600px) { .plan-mods { grid-template-columns:1fr; } }
+.prefijo-err { color: var(--rojo); }
+
+.form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.modal-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-footer button { flex: 1; padding: 13px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; border: none; }
+
+.btn-cancelar { background: var(--fondo); color: var(--gris); }
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1a1a2e;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: normal;      /* V6: los errores largos se leen completos */
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+}
+
+.toast.visible { transform: translateX(-50%) translateY(0); }
+.toast.verde   { background: var(--verde); }
+.toast.rojo    { background: var(--rojo); }
+
+/* Loading */
+.spinner {
+    width: 20px; height: 20px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.cargando-clientes {
+    text-align: center;
+    padding: 40px;
+    color: var(--gris);
+    font-size: 0.9rem;
+}
+
+.th-mobile, .celda-icono-movil, .stat-icono-movil { display: none; }
+#barraAccionMovil { display: none; }
+
+@media (max-width: 600px) {
+    .form-fila  { grid-template-columns: 1fr; }
+
+    /* Compactación vertical del sector Clientes — solo móvil */
+    .seccion { padding: 14px; margin-bottom: 14px; }
+    .seccion-header { margin-bottom: 10px; }
+
+    /* Resumen superior: franja única compacta, mismos statTotal/statActivos/
+       statVentasMes, mismo cálculo — solo cambia cómo se acomodan visualmente. */
+    .stats-grid {
+        display: flex;
+        gap: 0;
+        margin-bottom: 14px;
+        background: white;
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        padding: 10px 4px;
+    }
+    .stat-card {
+        flex: 1;
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 4px;
+        padding: 0 4px;
+        border-right: 1px solid var(--borde, #eee);
+        box-shadow: none;
+        border-radius: 0;
+    }
+    .stat-card:last-child { border-right: none; }
+    .stat-icono-movil { display: inline; font-size: 0.8rem; }
+    .stat-numero { font-size: 1.05rem; }
+    .stat-label { font-size: 0.6rem; margin-top: 0; white-space: nowrap; }
+
+    /* Vigencia (col 4) y Acciones (col 7) no se muestran en la lista móvil:
+       Vigencia queda accesible igual desde la barra superior (💳 Vigencia),
+       Acciones se reemplaza por la selección de fila + la barra. */
+    .tabla-clientes th:nth-child(4), .tabla-clientes td:nth-child(4),
+    .tabla-clientes th:nth-child(7), .tabla-clientes td:nth-child(7) { display: none; }
+
+    /* Cabecera compacta: ID | NEGOCIO | E | 🔑 | VENTAS MES */
+    .th-desktop { display: none; }
+    .th-mobile  { display: inline; }
+    .celda-texto { display: none; }
+    .celda-icono-movil { display: inline; }
+
+    .tabla-clientes, .tabla-clientes thead, .tabla-clientes tbody,
+    .tabla-clientes th, .tabla-clientes td, .tabla-clientes tr {
+        display: block;
+        width: 100%;
+    }
+    .tabla-clientes thead tr {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px 5px;
+        font-size: 0.62rem;
+        color: var(--gris);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        border-bottom: 2px solid var(--borde, #eee); /* única línea divisoria de la cabecera */
+    }
+    .tabla-clientes thead th { border-bottom: none; padding: 0; } /* sin subrayado individual por columna */
+    .tabla-clientes thead th:nth-child(1) { flex: 0 0 34px; }
+    .tabla-clientes thead th:nth-child(2) { flex: 1; }
+    .tabla-clientes thead th:nth-child(3) { flex: 0 0 22px; text-align: center; }
+    .tabla-clientes thead th:nth-child(5) { flex: 0 0 22px; text-align: center; }
+    .tabla-clientes thead th:nth-child(6) { flex: 0 0 88px; text-align: right; }
+
+    .tabla-clientes tbody tr {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px;
+        border-bottom: 1px solid var(--borde, #eee);
+        cursor: pointer;
+    }
+    .tabla-clientes tbody tr.fila-seleccionada {
+        background: #E3F2FD;
+        border-left: 3px solid var(--azul-dark, #1565C0);
+        padding-left: 7px;
+    }
+    .tabla-clientes tbody td:nth-child(1) { flex: 0 0 34px; padding: 0; }
+    .tabla-clientes tbody td:nth-child(2) { flex: 1; padding: 0; overflow: hidden; min-width: 0; }
+    .tabla-clientes tbody td:nth-child(2) strong {
+        display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tabla-clientes tbody td:nth-child(3) { flex: 0 0 22px; padding: 0; text-align: center; }
+    .tabla-clientes tbody td:nth-child(5) { flex: 0 0 22px; padding: 0; text-align: center; }
+    .tabla-clientes tbody td:nth-child(6) { flex: 0 0 88px; padding: 0; text-align: right; font-size: 0.82rem; }
+    .tabla-clientes tbody .badge { padding: 0; background: none !important; }
+
+    /* Barra de acciones — parte de la misma tarjeta Clientes, sin caja propia,
+       una sola fila de 4 botones compactos. */
+    #barraAccionMovil {
+        display: block;
+        padding: 0 0 8px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--borde, #eee);
+    }
+    #barraAccionInfo {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--gris);
+        margin-bottom: 6px;
+    }
+    #barraAccionBotones {
+        display: flex;
+        gap: 6px;
+    }
+    #barraAccionBotones .btn-accion {
+        flex: 1;
+        font-size: 0.66rem;
+        padding: 10px 3px;
+        text-align: center;
+        line-height: 1.15;
+        white-space: normal;
+    }
+}
+</style>
+</head>
+<body>
+<!-- STAGING-ONLY:INICIO -->
+<style>
+@keyframes vaoStgPulso {
+    0%, 94%, 100% { transform: scale(1); }
+    96% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255,120,0,.35); }
+    98% { transform: scale(1); }
+}
+#vaoStagingBadge { animation: vaoStgPulso 30s ease-in-out infinite; transform-origin: left bottom; }
+@media (prefers-reduced-motion: reduce) { #vaoStagingBadge { animation: none; } }
+</style>
+<div id="vaoStagingBadge" style="position:fixed;left:6px;bottom:6px;z-index:99999;padding:3px 8px;border-radius:10px;background:rgba(255,120,0,0.88);color:#fff;font:600 11px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.25);">🧪 STAGING · sistema de pruebas</div>
+<!-- STAGING-ONLY:FIN -->
+
+<!-- ══ PANEL LOGIN ══════════════════════════════════════════════ -->
+<div id="panelLogin">
+    <div class="login-card">
+        <div class="login-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" role="img">
+                <defs>
+                    <linearGradient id="lg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#21A8F6"/><stop offset="100%" stop-color="#0B49E8"/></linearGradient>
+                    <linearGradient id="lg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6BCB17"/><stop offset="100%" stop-color="#24A72E"/></linearGradient>
+                    <linearGradient id="lg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFC21A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+                    <linearGradient id="lg4" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0B49E8"/><stop offset="28%" stop-color="#16A6EF"/><stop offset="50%" stop-color="#43B02A"/><stop offset="70%" stop-color="#D6CF00"/><stop offset="86%" stop-color="#FFB000"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+                </defs>
+                <path d="M105 65 L305 65 L515 305 L710 65 L900 65 L525 430 L470 430 Z" fill="url(#lg1)"/>
+                <path d="M565 405 L900 90 L1165 385 L1015 385 L900 240 L800 350 L1005 350 L1065 420 L700 420 Z" fill="url(#lg2)"/>
+                <path d="M1228 351 A115 115 0 0 1 1458 351 Z" fill="url(#lg3)"/>
+                <g stroke="#FFB000" stroke-width="15" stroke-linecap="round"><line x1="1343" y1="165" x2="1343" y2="112"/><line x1="1230" y1="214" x2="1190" y2="174"/><line x1="1456" y1="214" x2="1496" y2="174"/></g>
+                <path d="M70 490 C 355 395, 650 355, 980 352 C 1210 350, 1410 370, 1560 410" fill="none" stroke="url(#lg4)" stroke-width="15" stroke-linecap="round"/>
+            </svg>
+            <div class="login-logo-titulo">VAO Sistemas</div>
+            <div class="login-logo-sub">Panel Administrador</div>
+        </div>
+
+        <label class="login-label">Clave de acceso</label>
+        <input type="password" class="login-input" id="inputClave"
+               placeholder="••••••••"
+               onkeydown="if(event.key==='Enter') iniciarSesion()">
+
+        <button class="login-btn" onclick="iniciarSesion()" id="btnLogin">
+            Ingresar
+        </button>
+
+        <div class="login-error" id="loginError"></div>
+
+        <a href="index.html" style="display:block;text-align:center;margin-top:18px;color:#8a95a1;font-size:0.82rem;text-decoration:underline;">
+            🏠 Volver al Inicio
+        </a>
+    </div>
+</div>
+
+<!-- ══ PANEL ADMIN ══════════════════════════════════════════════ -->
+<div id="panelAdmin">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" role="img">
+                <defs>
+                    <linearGradient id="ha1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#21A8F6"/><stop offset="100%" stop-color="#0B49E8"/></linearGradient>
+                    <linearGradient id="ha2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6BCB17"/><stop offset="100%" stop-color="#24A72E"/></linearGradient>
+                    <linearGradient id="ha3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFC21A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+                    <linearGradient id="ha4" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0B49E8"/><stop offset="50%" stop-color="#43B02A"/><stop offset="100%" stop-color="#FF8C00"/></linearGradient>
+                </defs>
+                <path d="M105 65 L305 65 L515 305 L710 65 L900 65 L525 430 L470 430 Z" fill="url(#ha1)"/>
+                <path d="M565 405 L900 90 L1165 385 L1015 385 L900 240 L800 350 L1005 350 L1065 420 L700 420 Z" fill="url(#ha2)"/>
+                <path d="M1228 351 A115 115 0 0 1 1458 351 Z" fill="url(#ha3)"/>
+                <g stroke="#FFB000" stroke-width="15" stroke-linecap="round"><line x1="1343" y1="165" x2="1343" y2="112"/><line x1="1230" y1="214" x2="1190" y2="174"/><line x1="1456" y1="214" x2="1496" y2="174"/></g>
+                <path d="M70 490 C 355 395, 650 355, 980 352 C 1210 350, 1410 370, 1560 410" fill="none" stroke="url(#ha4)" stroke-width="15" stroke-linecap="round"/>
+            </svg>
+            <div class="header-info">
+                <div class="header-titulo">SmartPOS Admin</div>
+                <div class="header-sub">VAO Sistemas</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="btn-logout" onclick="cerrarSesion()">🚪 Salir</button>
+        </div>
+    </div>
+
+    <!-- Contenido -->
+    <div class="contenido">
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-icono-movil">👥</span>
+                <div class="stat-numero" id="statTotal">—</div>
+                <div class="stat-label">Clientes</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icono-movil">✅</span>
+                <div class="stat-numero" id="statActivos">—</div>
+                <div class="stat-label">Activos</div>
+            </div>
+            <div class="stat-card">
+                <span class="stat-icono-movil">📊</span>
+                <div class="stat-numero" id="statVentasMes">—</div>
+                <div class="stat-label"><span class="th-desktop">Ventas este mes</span><span class="th-mobile">Mes actual</span></div>
+            </div>
+        </div>
+
+        <!-- Lista clientes -->
+        <div class="seccion">
+            <div class="seccion-header">
+                <div class="seccion-titulo">Clientes</div>
+                <div class="botones-seccion">
+                    <button class="btn-primario" style="background:#0D47A1;" onclick="abrirModalRegistros()">🚀 Pruebas y registros <span id="badgeRegistros" style="display:none;background:#FFB300;color:#222;border-radius:999px;padding:1px 8px;margin-left:4px;font-size:0.78rem;"></span></button>
+                    <button class="btn-primario" style="background:#5E35B1;" onclick="abrirModalPlanes()">🧩 Planes</button>
+                    <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
+                        ＋ Nuevo cliente
+                    </button>
+                </div>
+            </div>
+
+            <div id="barraAccionMovil">
+                <div id="barraAccionInfo">Seleccioná un cliente</div>
+                <div id="barraAccionBotones" style="display:none;">
+                    <button class="btn-accion" style="background:#E3F2FD;color:var(--azul-dark);" onclick="abrirPOS(clienteSeleccionadoPrefijo)">🖥️ POS</button>
+                    <button class="btn-accion" id="btnBarraActivar" style="background:#FFEBEE;color:var(--rojo);" onclick="accionBarraToggleActivo()">🔒 Susp./Activ.</button>
+                    <button class="btn-accion" style="background:#FFF3E0;color:#E65100;" onclick="abrirModalVigencia(clienteSeleccionadoPrefijo)">💳 Vigencia</button>
+                    <button class="btn-accion" style="background:#F3E5F5;color:#6A1B9A;" onclick="accionBarraResetPin()">🔑 PIN</button>
+                    <button class="btn-accion" style="background:#EDE7F6;color:#4527A0;" onclick="abrirModalPlanCliente(clienteSeleccionadoPrefijo)">🧩 Plan</button>
+                </div>
+            </div>
+
+            <div id="contenedorClientes">
+                <div class="cargando-clientes">
+                    <div class="spinner" style="border-top-color:var(--azul);border-color:var(--borde);width:28px;height:28px;margin:0 auto 12px;"></div>
+                    Cargando clientes...
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ══ MODAL ALTA CLIENTE ═══════════════════════════════════════ -->
+<div class="modal-overlay" id="modalAlta">
+    <div class="modal">
+        <div class="modal-titulo">➕ Nuevo cliente</div>
+        <div class="aviso-borrador" id="altaBorradorAviso" style="display:none;"><span>📝 Recuperé lo que estabas cargando</span><button onclick="empezarDeCeroAlta()">🗑 Empezar de cero</button></div>
+
+        <div class="form-fila">
+            <div class="form-grupo">
+                <label class="form-label">Prefijo *</label>
+                <input type="text" class="form-input" id="altaPrefijo"
+                       placeholder="MC"
+                       maxlength="3"
+                       oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,''); validarPrefijo()"
+                       style="font-family:monospace;font-weight:900;letter-spacing:2px;font-size:1.1rem;">
+                <div class="prefijo-check" id="prefijoCheck"></div>
+            </div>
+            <div class="form-grupo">
+                <label class="form-label">Plan</label>
+                <select class="form-select" id="altaPlan" onchange="alCambiarPlanAlta()">
+                    <option value="">Cargando planes…</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-grupo">
+            <label class="form-label">Nombre del negocio *</label>
+            <input type="text" class="form-input" id="altaNombre" placeholder="El Carrito de María">
+        </div>
+
+        <div class="form-fila">
+            <div class="form-grupo">
+                <label class="form-label">Contacto (dueño)</label>
+                <input type="text" class="form-input" id="altaContacto" placeholder="María García">
+            </div>
+            <div class="form-grupo">
+                <label class="form-label">Teléfono / WhatsApp</label>
+                <input type="text" class="form-input" id="altaTelefono" placeholder="549294...">
+            </div>
+        </div>
+
+        <div class="form-grupo">
+            <label class="form-label">Correo</label>
+            <input type="text" inputmode="email" autocapitalize="off" class="form-input" id="altaCorreo" placeholder="maria@correo.com" oninput="_aMinusculas(this)">
+        </div>
+
+        <div class="form-fila">
+            <div class="form-grupo">
+                <label class="form-label">Alias de pago</label>
+                <input type="text" class="form-input" id="altaAlias" placeholder="mariagarciabariloche">
+            </div>
+            <div class="form-grupo">
+                <label class="form-label">Días de vigencia</label>
+                <input type="number" class="form-input" id="altaDias" min="0" step="1" placeholder="Sin vencimiento">
+            </div>
+        </div>
+        <div class="ayuda" id="altaPlanAyuda"></div>
+
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cancelarAlta()">Cancelar</button>
+            <button class="btn-primario btn-verde" onclick="crearCliente()" id="btnCrear" style="font-size:0.9rem;padding:13px;">
+                Crear cliente
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- V12: Modal Vigencia y pagos (reemplaza "📅 Renovar vigencia" de días manuales) -->
+<div class="modal-overlay" id="modalVigencia">
+    <div class="modal" style="max-width:720px;">
+        <div class="modal-titulo">💳 Vigencia y pagos — <span id="vigenciaPrefijo"></span></div>
+        <div id="vpContenido"><div class="ayuda">Cargando…</div></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cargarVigenciaPagos()">Actualizar</button>
+            <button class="btn-cancelar" onclick="cerrarModalVigencia()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- V6: Modal plan y módulos de un cliente -->
+<div class="modal-overlay" id="modalPlanCliente">
+    <div class="modal">
+        <div class="modal-titulo">🧩 Plan y módulos — <span id="pcPrefijo"></span></div>
+        <div class="form-grupo">
+            <label class="form-label">Plan</label>
+            <div style="display:flex;gap:8px;">
+                <select class="form-select" id="pcPlan"></select>
+                <button class="btn-primario btn-verde" id="btnPcPlan" onclick="confirmarCambioPlan()" style="white-space:nowrap;">Cambiar</button>
+            </div>
+            <div class="ayuda" id="pcPlanAyuda"></div>
+        </div>
+        <div id="pcCambio" style="display:none;margin-bottom:14px;"></div>
+        <div id="pcPrueba" style="display:none;margin-bottom:14px;"></div>
+        <div id="pcCheckpoint" style="margin-bottom:14px;"></div>
+        <label class="form-label">Módulos</label>
+        <div id="pcModulos"><div class="ayuda">Cargando…</div></div>
+        <div class="ayuda" style="margin-top:10px;" id="pcModulosAyuda">Un módulo funciona solo si el plan lo incluye <b>y</b> está encendido para este negocio. El servidor lo controla en cada operación.</div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cerrarModalPlanCliente()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- V6: Modal planes -->
+<div class="modal-overlay" id="modalPlanes">
+    <div class="modal" style="max-width:620px;">
+        <div class="modal-titulo">🧩 Planes</div>
+        <div id="planesContenido"></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cerrarModalPlanes()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- V11: Pruebas y registros (altas automáticas desde planes.html) -->
+<div class="modal-overlay" id="modalRegistros">
+    <div class="modal" style="max-width:760px;">
+        <div class="modal-titulo">🚀 Pruebas y registros</div>
+        <div id="registrosContenido"><div class="ayuda">Cargando…</div></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cargarRegistros()">Actualizar</button>
+            <button class="btn-cancelar" onclick="cerrarModalRegistros()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const APP_VERSION = 13;
+document.addEventListener('DOMContentLoaded', function(){
+    var tag = document.createElement('span');
+    tag.id = 'version-tag';
+    tag.style.cssText = 'position:fixed;right:10px;bottom:8px;font-size:11px;color:#8a95a1;z-index:9999;';
+    tag.textContent = 'v' + APP_VERSION;
+    document.body.appendChild(tag);
+});
+const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
+const LS_TOKEN = 'vao_admin_token';
+const LS_TOKEN_EXP = 'vao_admin_token_exp';
+
+let tokenAdmin = '';
+let clientesCargados = [];
+// V6: planes y regla de prefijo vienen del servidor (una sola regla para los dos lados)
+// V13: estado de la consulta de planes. Mientras no sea 'OK', "existe: false" NO significa que la hoja no exista.
+let planesInfo = { estado: 'CARGANDO', existe: false, planes: [], modulosImplementados: [], reglasPrefijo: { patron: '^[A-Z]{2,3}$', reservados: ['VAO'] } };
+let _planesSeq = 0, _planesError = '', _creandoPlanes = false;
+const PLANES_TIMEOUT_MS = 20000;
+function _textoPlanesNoListos() {
+    return planesInfo.estado === 'ERROR' ? 'Error de conexión: no se pudieron consultar los planes. Reintentá desde 🧩 Planes.' : 'Consultando planes…';
+}
+
+function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function _adminApi(action, payload) {
+    const data = encodeURIComponent(JSON.stringify(Object.assign({ token: tokenAdmin }, payload || {})));
+    const r = await fetch(API_URL + '?action=' + action + '&data=' + data, { redirect: 'follow' });
+    return r.json();
+}
+
+// ── SESIÓN ────────────────────────────────────────────────────────
+function sesionGuardada() {
+    const token = localStorage.getItem(LS_TOKEN);
+    const exp   = parseInt(localStorage.getItem(LS_TOKEN_EXP) || '0');
+    if (token && exp > Date.now()) { tokenAdmin = token; return true; }
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_TOKEN_EXP);
+    return false;
+}
+
+// V7 (B4): el servidor renueva la sesión admin 10 minutos en cada acción
+// válida; el navegador ahora hace lo mismo (antes te sacaba a los 10 minutos
+// de haber entrado aunque estuvieras trabajando).
+const MINUTOS_SESION_ADMIN = 10;
+function _renovarSesionLocal() {
+    if (!tokenAdmin) return;
+    localStorage.setItem(LS_TOKEN_EXP, String(Date.now() + MINUTOS_SESION_ADMIN * 60 * 1000));
+}
+function _sesionVencida() {
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_TOKEN_EXP);
+    tokenAdmin = '';
+    document.querySelectorAll('.modal-overlay.visible').forEach(m => m.classList.remove('visible'));
+    document.getElementById('panelAdmin').style.display = 'none';
+    document.getElementById('panelLogin').style.display  = 'flex';
+    mostrarError('La sesión venció por inactividad. Volvé a entrar: lo que estabas cargando quedó guardado.');
+}
+const _fetchOriginal = window.fetch.bind(window);
+window.fetch = async function (url, opciones) {
+    const r = await _fetchOriginal(url, opciones);
+    if (String(url).indexOf(API_URL) === 0 && tokenAdmin) {
+        r.clone().json().then(j => {
+            if (j && typeof j.error === 'string' && j.error.indexOf('Sesión admin inválida') === 0) _sesionVencida();
+            else if (j) _renovarSesionLocal();
+        }).catch(() => {});
+    }
+    return r;
+};
+
+function guardarSesion(token, expira) {
+    tokenAdmin = token;
+    localStorage.setItem(LS_TOKEN, token);
+    localStorage.setItem(LS_TOKEN_EXP, expira.toString());
+}
+
+function cerrarSesion() {
+    const tokenASalir = tokenAdmin;
+    if (tokenASalir) {
+        const data = encodeURIComponent(JSON.stringify({ token: tokenASalir }));
+        fetch(API_URL + '?action=cerrarSesionAdmin&data=' + data, { redirect: 'follow' }).catch(() => {});
+    }
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_TOKEN_EXP);
+    tokenAdmin = '';
+    document.getElementById('panelAdmin').style.display = 'none';
+    document.getElementById('panelLogin').style.display  = 'flex';
+    document.getElementById('inputClave').value = '';
+    window.location.href = 'index.html';
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────
+async function iniciarSesion() {
+    const clave = document.getElementById('inputClave').value.trim();
+    const btn   = document.getElementById('btnLogin');
+    const err   = document.getElementById('loginError');
+    err.style.display = 'none';
+    if (!clave) { mostrarError('Ingresá tu clave'); return; }
+
+    btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled  = true;
+
+    try {
+        const data = encodeURIComponent(JSON.stringify({ clave }));
+        const r    = await fetch(API_URL + '?action=adminLogin&data=' + data, { redirect: 'follow' });
+        const res  = await r.json();
+
+        if (res.error) { mostrarError(res.error); return; }
+        if (res.success && res.token) {
+            guardarSesion(res.token, res.expira);
+            mostrarAdmin();
+        }
+    } catch(e) {
+        mostrarError('Error de conexión — verificá internet');
+    } finally {
+        btn.innerHTML = 'Ingresar';
+        btn.disabled  = false;
+    }
+}
+
+function mostrarError(msg) {
+    const err = document.getElementById('loginError');
+    err.textContent = msg;
+    err.style.display = 'block';
+}
+
+// ── PANEL ADMIN ───────────────────────────────────────────────────
+function mostrarAdmin() {
+    document.getElementById('panelLogin').style.display = 'none';
+    document.getElementById('panelAdmin').style.display = 'block';
+    cargarClientes();
+    actualizarBadgeRegistros(); setInterval(actualizarBadgeRegistros, 60000); // V11: indicador visible y actualizado
+    cargarPlanes().then(reabrirAltaPendiente);
+}
+
+async function cargarClientes() {
+    try {
+        const data = encodeURIComponent(JSON.stringify({ token: tokenAdmin }));
+        const r    = await fetch(API_URL + '?action=getResumenAdmin&data=' + data, { redirect: 'follow' });
+        const res  = await r.json();
+
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+
+        clientesCargados = res.clientes || [];
+        renderClientes();
+        actualizarStats();
+    } catch(e) {
+        document.getElementById('contenedorClientes').innerHTML =
+            '<div class="cargando-clientes">Error de conexión</div>';
+    }
+}
+
+function actualizarStats() {
+    const total   = clientesCargados.length;
+    const activos = clientesCargados.filter(c => c.activo).length;
+    const ventas  = clientesCargados.reduce((s, c) => s + (c.ventasMes || 0), 0);
+
+    document.getElementById('statTotal').textContent   = total;
+    document.getElementById('statActivos').textContent = activos;
+    document.getElementById('statVentasMes').textContent =
+        ventas > 0 ? '$' + Math.round(ventas / 1000) + 'k' : '$0';
+}
+
+function renderClientes() {
+    const cont = document.getElementById('contenedorClientes');
+
+    if (clienteSeleccionadoPrefijo && !clientesCargados.some(c => c.prefijo === clienteSeleccionadoPrefijo)) {
+        clienteSeleccionadoPrefijo = null;
+    }
+
+    if (!clientesCargados.length) {
+        cont.innerHTML = '<div class="cargando-clientes">No hay clientes todavía.<br>Creá el primero con el botón ＋</div>';
+        actualizarBarraAccionMovil();
+        return;
+    }
+
+    cont.innerHTML = _alertaRegularizar() + `
+    <table class="tabla-clientes">
+        <thead>
+            <tr>
+                <th><span class="th-desktop">Prefijo</span><span class="th-mobile">ID</span></th>
+                <th><span class="th-desktop">Negocio</span><span class="th-mobile">Negocio</span></th>
+                <th><span class="th-desktop">Estado</span><span class="th-mobile">E</span></th>
+                <th>Vigencia</th>
+                <th><span class="th-desktop">Config</span><span class="th-mobile">🔑</span></th>
+                <th><span class="th-desktop">Ventas mes</span><span class="th-mobile">Ventas mes</span></th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${clientesCargados.map(c => `
+            <tr class="${c.prefijo === clienteSeleccionadoPrefijo ? 'fila-seleccionada' : ''}"
+                onclick="if(!event.target.closest('.acciones')) seleccionarCliente('${c.prefijo}')">
+                <td><span class="prefijo-tag">${c.prefijo}</span></td>
+                <td><strong>${_esc(c.nombre || '—')}</strong>${c.plan ? `<span class="badge-plan">${_esc(c.planNombre || c.plan)}</span>` : ''}${(c.revisar && c.revisar.length) ? `<span class="aviso-revisar" title="${_esc(c.revisar.join(' · '))}">⚠️ Revisar: ${_esc(c.revisar[0])}</span>` : ''}</td>
+                <td>
+                    <span class="badge ${c.activo ? 'badge-activo' : 'badge-inactivo'}">
+                        <span class="celda-icono-movil">${c.activo ? '✅' : '❌'}</span><span class="celda-texto">${c.activo ? '✅ Activo' : '❌ Inactivo'}</span>
+                    </span>
+                </td>
+                <td>
+                    ${c.prueba && c.prueba.regularizada ? `<span class="badge ${c.prueba.estado === 'VENCIDA' ? 'badge-inactivo' : (c.prueba.estado === 'GRACIA' ? 'badge-pendiente' : 'badge-activo')}">${
+                        c.prueba.estado === 'ACTIVA' ? '🧪 Día ' + c.prueba.dia + '/7 · hasta ' + c.prueba.venceTxt :
+                        c.prueba.estado === 'GRACIA' ? '⏳ Gracia hasta ' + c.prueba.finGraciaTxt : '🔒 Prueba vencida (consulta)'}</span>` : `
+                    <span class="badge ${c.vigente ? 'badge-activo' : 'badge-inactivo'}">
+                        ${c.fechaVence ? (c.enTolerancia ? '⏳ En tolerancia, venció ' : c.vigente ? '📅 Vence ' : '⛔ Venció ') + new Date(c.fechaVence).toLocaleDateString('es-AR') : '— Sin vencimiento'}
+                    </span>${_badgeComercial(c)}`}
+                </td>
+                <td>
+                    <span class="badge ${c.tienePin ? 'badge-ok' : 'badge-pendiente'}">
+                        <span class="celda-icono-movil">${c.tienePin ? '🔑' : '⚠️'}</span><span class="celda-texto">${c.tienePin ? '🔑 PIN' : '⚠️ Sin PIN'}</span>
+                    </span>
+                </td>
+                <td style="font-weight:700;color:var(--verde);">
+                    ${c.ventasMes > 0 ? '$' + c.ventasMes.toLocaleString('es-AR') : '—'}
+                </td>
+                <td>
+                    <div class="acciones">
+                        <button class="btn-accion"
+                            style="background:#E3F2FD;color:var(--azul-dark);"
+                            onclick="abrirPOS('${c.prefijo}')">🖥️ POS</button>
+                        <button class="btn-accion"
+                            style="background:${c.activo ? '#FFEBEE' : '#E8F5E9'};color:${c.activo ? 'var(--rojo)' : 'var(--verde)'};"
+                            onclick="toggleActivo('${c.prefijo}', ${c.activo})">
+                            ${c.activo ? '🔒 Suspender' : '✅ Activar'}
+                        </button>
+                        <button class="btn-accion"
+                            style="background:#FFF3E0;color:#E65100;"
+                            onclick="abrirModalVigencia('${c.prefijo}')">💳 Vigencia y pagos</button>
+                        <button class="btn-accion"
+                            style="background:#F3E5F5;color:#6A1B9A;"
+                            onclick="resetPin('${c.prefijo}', '${(c.nombre || '').replace(/'/g, "\\'")}')">🔑 Reset PIN</button>
+                        <button class="btn-accion"
+                            style="background:#EDE7F6;color:#4527A0;"
+                            onclick="abrirModalPlanCliente('${c.prefijo}')">🧩 Plan</button>
+                    </div>
+                </td>
+            </tr>`).join('')}
+        </tbody>
+    </table>`;
+
+    actualizarBarraAccionMovil();
+}
+
+// ── SELECCIÓN DE CLIENTE (rediseño móvil) ──────────────────────────
+let clienteSeleccionadoPrefijo = null;
+
+function seleccionarCliente(prefijo) {
+    clienteSeleccionadoPrefijo = prefijo;
+    renderClientes();
+}
+
+function actualizarBarraAccionMovil() {
+    const info = document.getElementById('barraAccionInfo');
+    const botones = document.getElementById('barraAccionBotones');
+    if (!info || !botones) return;
+
+    const c = clientesCargados.find(x => x.prefijo === clienteSeleccionadoPrefijo);
+    if (!c) {
+        info.textContent = 'Seleccioná un cliente';
+        botones.style.display = 'none';
+        return;
+    }
+
+    info.textContent = 'Seleccionado: ' + c.prefijo + ' · ' + (c.nombre || '—');
+    botones.style.display = 'flex';
+
+    const btnActivar = document.getElementById('btnBarraActivar');
+    btnActivar.textContent = c.activo ? '🔒 Susp.' : '✅ Activ.';
+    btnActivar.style.background = c.activo ? '#FFEBEE' : '#E8F5E9';
+    btnActivar.style.color = c.activo ? 'var(--rojo)' : 'var(--verde)';
+}
+
+// Wrappers mínimos: solo buscan el dato fresco que la función original
+// necesita y se lo pasan — no reimplementan ninguna lógica propia.
+function accionBarraToggleActivo() {
+    const c = clientesCargados.find(x => x.prefijo === clienteSeleccionadoPrefijo);
+    if (!c) return;
+    toggleActivo(c.prefijo, c.activo);
+}
+function accionBarraResetPin() {
+    const c = clientesCargados.find(x => x.prefijo === clienteSeleccionadoPrefijo);
+    if (!c) return;
+    resetPin(c.prefijo, c.nombre || '');
+}
+
+// ── ALTA CLIENTE ──────────────────────────────────────────────────
+const CAMPOS_ALTA = ['altaPrefijo','altaNombre','altaContacto','altaTelefono','altaCorreo','altaAlias','altaDias'];
+const BORRADOR_ALTA = 'vao_borrador_admin_alta'; // V7 (A1). Nunca guarda claves, tokens ni PIN.
+
+function _aMinusculas(el) {
+    // V7 (A2): minúsculas sin desordenar lo que se escribe (el campo ya no es
+    // type=email, que en Chrome no deja leer la posición del cursor).
+    const v = el.value, l = v.toLowerCase();
+    if (v === l) return;
+    const a = el.selectionStart, b = el.selectionEnd;
+    el.value = l;
+    try { el.setSelectionRange(a, b); } catch (e) {}
+}
+
+function _leerBorradorAlta() { try { return JSON.parse(localStorage.getItem(BORRADOR_ALTA) || 'null'); } catch (e) { return null; } }
+function _borrarBorradorAlta() { try { localStorage.removeItem(BORRADOR_ALTA); } catch (e) {} }
+function guardarBorradorAlta() {
+    const d = { plan: document.getElementById('altaPlan').value, _t: Date.now() };
+    CAMPOS_ALTA.forEach(id => d[id] = document.getElementById(id).value);
+    try { localStorage.setItem(BORRADOR_ALTA, JSON.stringify(d)); } catch (e) {}
+}
+function _altaTieneDatos() {
+    return CAMPOS_ALTA.some(id => id !== 'altaDias' && document.getElementById(id).value.trim() !== '');
+}
+
+function abrirModalAlta() {
+    if (planesInfo.estado !== 'OK') {           // V13: todavía no se sabe (o falló la consulta)
+        toast(_textoPlanesNoListos(), planesInfo.estado === 'ERROR' ? 'rojo' : '');
+        if (planesInfo.estado === 'ERROR') cargarPlanes();
+        return;
+    }
+    if (!planesInfo.existe) {
+        toast('Primero creá los planes (botón 🧩 Planes)', 'rojo');
+        abrirModalPlanes();
+        return;
+    }
+    llenarSelectPlanes();
+    const b = _leerBorradorAlta();
+    const recuperado = !!(b && CAMPOS_ALTA.some(id => id !== 'altaDias' && String(b[id] || '').trim()));
+    if (recuperado && !_altaTieneDatos()) {
+        CAMPOS_ALTA.forEach(id => document.getElementById(id).value = b[id] || '');
+        if (b.plan && [...document.getElementById('altaPlan').options].some(o => o.value === b.plan)) document.getElementById('altaPlan').value = b.plan;
+        const p = (planesInfo.planes || []).find(x => x.codigo === document.getElementById('altaPlan').value);
+        if (p) { alCambiarPlanAlta(); document.getElementById('altaDias').value = b.altaDias || ''; }
+        validarPrefijo();
+    }
+    document.getElementById('altaBorradorAviso').style.display = recuperado ? 'flex' : 'none';
+    document.getElementById('modalAlta').classList.add('visible');
+    document.getElementById('altaPrefijo').focus();
+}
+
+// Ocultar sin borrar (botón Atrás, sesión vencida): lo escrito se conserva.
+function ocultarModalAlta() {
+    document.getElementById('modalAlta').classList.remove('visible');
+}
+
+function cancelarAlta() {
+    if (_altaTieneDatos() && !confirm('¿Descartar los datos de este cliente?\n\nSe borra lo que escribiste.')) return;
+    _borrarBorradorAlta();
+    cerrarModalAlta();
+}
+
+function empezarDeCeroAlta() {
+    if (!confirm('¿Borrar lo escrito y empezar de cero?')) return;
+    _borrarBorradorAlta();
+    CAMPOS_ALTA.forEach(id => { document.getElementById(id).value = ''; document.getElementById(id).classList.remove('error'); });
+    document.getElementById('prefijoCheck').textContent = '';
+    document.getElementById('altaBorradorAviso').style.display = 'none';
+    alCambiarPlanAlta();
+}
+
+function cerrarModalAlta() {
+    document.getElementById('modalAlta').classList.remove('visible');
+    document.getElementById('altaBorradorAviso').style.display = 'none';
+    ['altaPrefijo','altaNombre','altaContacto','altaTelefono',
+     'altaCorreo','altaAlias','altaDias'].forEach(id => {
+        document.getElementById(id).value = '';
+        document.getElementById(id).classList.remove('error');
+    });
+    document.getElementById('prefijoCheck').textContent = '';
+}
+
+// V6: misma regla que el servidor (patrón y reservados vienen de getPlanes) +
+// verificación real contra TODAS las hojas en el servidor (verificarPrefijo).
+let _verifPrefijoTimer = null;
+function validarPrefijo() {
+    const prefijo = document.getElementById('altaPrefijo').value.trim().toUpperCase();
+    const check   = document.getElementById('prefijoCheck');
+    const marcar  = (txt, clase) => { check.textContent = txt; check.className = 'prefijo-check ' + clase; };
+    clearTimeout(_verifPrefijoTimer);
+    if (prefijo.length < 2) { check.textContent = ''; return; }
+    const reglas = planesInfo.reglasPrefijo || {};
+    if (!new RegExp(reglas.patron || '^[A-Z]{2,3}$').test(prefijo)) { marcar('⚠️ Debe tener 2 o 3 letras', 'prefijo-err'); return; }
+    if ((reglas.reservados || []).includes(prefijo)) { marcar('⚠️ Prefijo reservado del sistema', 'prefijo-err'); return; }
+    if (clientesCargados.some(c => c.prefijo === prefijo)) { marcar('⚠️ Prefijo ya existe', 'prefijo-err'); return; }
+    marcar('⏳ Verificando hojas…', 'prefijo-neutro');
+    _verifPrefijoTimer = setTimeout(async () => {
+        try {
+            const res = await _adminApi('verificarPrefijo', { prefijo });
+            if (document.getElementById('altaPrefijo').value.trim().toUpperCase() !== prefijo) return;
+            if (res.error) marcar('⚠️ ' + res.error, 'prefijo-err');
+            else if (res.disponible) marcar('✅ Disponible', 'prefijo-ok');
+            else marcar('⚠️ ' + (res.motivos || []).join(' · '), 'prefijo-err');
+        } catch (e) { marcar('', ''); }
+    }, 450);
+}
+
+async function crearCliente() {
+    const prefijo  = document.getElementById('altaPrefijo').value.trim().toUpperCase();
+    const nombre   = document.getElementById('altaNombre').value.trim();
+    const contacto = document.getElementById('altaContacto').value.trim();
+    const telefono = document.getElementById('altaTelefono').value.trim();
+    const correo   = document.getElementById('altaCorreo').value.trim();
+    const alias    = document.getElementById('altaAlias').value.trim();
+    const plan     = document.getElementById('altaPlan').value;
+    const diasTxt  = plan === 'PRUEBA' ? '' : document.getElementById('altaDias').value.trim(); // V8: PRUEBA la fija el servidor
+
+    // Validaciones (el servidor vuelve a validar TODO)
+    let ok = true;
+    const reglas = planesInfo.reglasPrefijo || {};
+    if (!new RegExp(reglas.patron || '^[A-Z]{2,3}$').test(prefijo) || (reglas.reservados || []).includes(prefijo)) {
+        document.getElementById('altaPrefijo').classList.add('error'); ok = false;
+    }
+    if (!nombre) {
+        document.getElementById('altaNombre').classList.add('error'); ok = false;
+    }
+    if (!plan) { toast('Elegí un plan', 'rojo'); return; }
+    if (diasTxt !== '' && !/^\d+$/.test(diasTxt)) {
+        document.getElementById('altaDias').classList.add('error'); ok = false;
+    }
+    if (!ok) { toast('Revisá los campos marcados', 'rojo'); return; }
+
+    if (clientesCargados.some(c => c.prefijo === prefijo)) {
+        toast('El prefijo ' + prefijo + ' ya existe', 'rojo'); return;
+    }
+
+    const btn = document.getElementById('btnCrear');
+    btn.innerHTML = '<span class="spinner"></span> Creando...';
+    btn.disabled  = true;
+
+    try {
+        const res = await _adminApi('crearVendedor', { prefijo, nombre, contacto, telefono, correo, plan,
+                                                       diasVigencia: diasTxt, aliasPago: alias, tokenMP: '' });
+
+        if (res.error) {
+            document.getElementById('prefijoCheck').textContent = (res.motivos && res.motivos.length) ? '⚠️ ' + res.motivos.join(' · ') : '';
+            document.getElementById('prefijoCheck').className = 'prefijo-check prefijo-err';
+            toast('Error: ' + res.error, 'rojo');
+            return;
+        }
+
+        _borrarBorradorAlta(); // V7: solo después de la confirmación del servidor
+        cerrarModalAlta();
+        await cargarClientes();
+
+        // El servidor generó el PIN — se muestra UNA sola vez, no se recupera después
+        const planNom = (planesInfo.planes.find(p => p.codigo === res.plan) || {}).nombre || res.plan;
+        alert('✅ Cliente ' + nombre + ' (' + res.prefijo + ') creado.\n\nPlan: ' + planNom +
+              (res.prueba ? '\nPrueba: del ' + res.prueba.altaTxt + ' al ' + res.prueba.venceTxt + ' · gracia hasta ' + res.prueba.finGraciaTxt
+                          : (res.fechaVence ? '\nVence: ' + new Date(res.fechaVence).toLocaleDateString('es-AR') : '\nSin vencimiento')) +
+              '\n\nPIN de acceso: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
+
+    } catch(e) {
+        // V7 (B5): sin respuesta — NO se borra nada. Se mira la lista para saber si llegó.
+        await cargarClientes();
+        if (clientesCargados.some(c => c.prefijo === prefijo)) {
+            _borrarBorradorAlta();
+            cerrarModalAlta();
+            alert('📡 El servidor no respondió, pero el cliente ' + prefijo + ' SÍ quedó creado.\n\nEl PIN no llegó a mostrarse: usá 🔑 Reset PIN en la lista para generar uno nuevo.');
+        } else {
+            alert('📡 Sin respuesta del servidor. Lo que escribiste quedó guardado.\n\n' + prefijo + ' no aparece en la lista: tocá Crear de nuevo (no se duplica, el prefijo se controla).\nSi más tarde aparece en la lista, usá 🔑 Reset PIN.');
+        }
+    } finally {
+        btn.innerHTML = 'Crear cliente';
+        btn.disabled  = false;
+    }
+}
+
+// ── PLANES (V6) ───────────────────────────────────────────────────
+async function cargarPlanes() {
+    const seq = ++_planesSeq;
+    const teniaDatos = planesInfo.estado === 'OK';
+    if (!teniaDatos) { planesInfo.estado = 'CARGANDO'; _redibujarPlanesAbierto(); }
+    let res = null, error = '';
+    try {
+        res = await Promise.race([
+            _adminApi('getPlanes'),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), PLANES_TIMEOUT_MS))
+        ]);
+        if (!res || res.error || res.success !== true || typeof res.existe !== 'boolean') error = (res && res.error) || 'respuesta inválida';
+    } catch (e) { error = e && e.message === 'timeout' ? 'el servidor no respondió a tiempo' : 'sin conexión'; }
+    if (seq !== _planesSeq) return;                       // llegó tarde: ya hay una consulta más nueva
+    if (!error) { planesInfo = Object.assign({}, res, { estado: 'OK' }); _planesError = ''; }
+    else if (teniaDatos) { toast('No se pudieron actualizar los planes (' + error + '). Se muestran los últimos datos.', 'rojo'); }
+    else { planesInfo = Object.assign({}, planesInfo, { estado: 'ERROR', existe: false, planes: [] }); _planesError = error; }
+    llenarSelectPlanes();
+    _redibujarPlanesAbierto();
+}
+
+function _redibujarPlanesAbierto() {
+    const m = document.getElementById('modalPlanes');
+    if (m && m.classList.contains('visible')) renderPlanes();
+}
+
+function _nombreModulo(clave) {
+    const m = (planesInfo.modulosImplementados || []).find(x => x.clave === clave);
+    return m ? m.nombre : clave;
+}
+
+function llenarSelectPlanes() {
+    const sel = document.getElementById('altaPlan');
+    const previo = sel.value;
+    const activos = (planesInfo.planes || []).filter(p => p.activo && p.codigo === 'PRUEBA'); // V12: el alta es solo PRUEBA
+    sel.innerHTML = planesInfo.estado !== 'OK'
+        ? '<option value="">' + _esc(_textoPlanesNoListos()) + '</option>'
+        : !planesInfo.existe
+        ? '<option value="">Primero creá los planes (🧩 Planes)</option>'
+        : activos.map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + '</option>').join('');
+    if (activos.some(p => p.codigo === previo)) sel.value = previo;
+    alCambiarPlanAlta();
+}
+
+function alCambiarPlanAlta() {
+    const p = (planesInfo.planes || []).find(x => x.codigo === document.getElementById('altaPlan').value);
+    const ayuda = document.getElementById('altaPlanAyuda');
+    if (!p) { ayuda.textContent = ''; return; }
+    const mods = Object.keys(p.modulos).filter(k => p.modulos[k]).map(_nombreModulo);
+    const dias = document.getElementById('altaDias');
+    if (p.codigo === 'PRUEBA') {
+        // V8: PRUEBA = 7 días + 3 de gracia desde hoy (fecha del servidor). No se edita.
+        dias.value = '7'; dias.disabled = true;
+        const f = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('es-AR'); };
+        ayuda.innerHTML = '🧪 <b>Prueba fija:</b> empieza hoy (' + f(0) + '), funciona hasta el <b>' + f(6) + '</b> (día 7) y tiene gracia hasta el <b>' + f(9) +
+            '</b> (día 10). Después queda en modo consulta. No se puede cambiar ni renovar. Pide teléfono o correo (una prueba por persona).<br>Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.map(_esc).join(', ') : '') + '.' +
+            '<br>💳 <b>Planes pagos</b> (Básico, Pro…): se activan después, registrando el pago confirmado en <b>💳 Vigencia y pagos</b>.';
+        return;
+    }
+    dias.disabled = false;
+    document.getElementById('altaDias').value = p.diasVigencia ? p.diasVigencia : '';
+    ayuda.textContent = 'Incluye: venta, cobro y buscador' + (mods.length ? ', ' + mods.join(', ') : '') +
+        '. Días de vigencia vacío = sin vencimiento' + (p.diasTolerancia ? ' · tolerancia ' + p.diasTolerancia + ' días' : '') + '.';
+}
+
+function abrirModalPlanes() {
+    renderPlanes();
+    document.getElementById('modalPlanes').classList.add('visible');
+}
+function cerrarModalPlanes() {
+    document.getElementById('modalPlanes').classList.remove('visible');
+}
+
+function renderPlanes() {
+    const cont = document.getElementById('planesContenido');
+    if (planesInfo.estado === 'CARGANDO') {
+        cont.innerHTML = '<div class="ayuda" id="planesEstado" style="padding:18px 0;text-align:center;font-size:0.95rem;"><span class="spinner"></span> Consultando planes…</div>';
+        return;
+    }
+    if (planesInfo.estado !== 'OK') {
+        cont.innerHTML = '<div class="ayuda" id="planesEstado" style="padding:14px 0;color:var(--rojo);font-size:0.92rem;">❌ Error de conexión. No se pudieron consultar los planes' +
+            (_planesError ? ' (' + _esc(_planesError) + ')' : '') + '.<br>No se muestra ni se cambia nada hasta tener la respuesta del servidor.</div>' +
+            '<button class="btn-primario" id="btnReintentarPlanes" onclick="cargarPlanes()">Reintentar</button>';
+        return;
+    }
+    if (!planesInfo.existe) {   // V13: el servidor CONFIRMÓ que PLANES_VAO no existe
+        cont.innerHTML = '<p class="ayuda" style="font-size:0.85rem;">Todavía no hay tabla de planes. Se crea la hoja <b>PLANES_VAO</b> con PRUEBA, BÁSICO y PRO; después podés editar cada uno acá. No se modifica ninguna hoja existente.</p>' +
+            '<div id="planesPrevia" class="ayuda" style="margin:10px 0 14px;">Calculando qué cambia para los negocios actuales…</div>' +
+            '<button class="btn-primario btn-verde" id="btnInitPlanes" onclick="crearPlanesIniciales()">Crear planes iniciales</button>';
+        cargarPreviaPlanes();
+        return;
+    }
+    const mods = planesInfo.modulosImplementados || [];
+    cont.innerHTML = '<p class="ayuda" style="margin-bottom:12px;">Los cambios se aplican a todos los negocios de ese plan. Solo se ofrecen módulos que ya tienen pantalla en el POS. Los negocios existentes NO se modifican solos: revisalos con el checkpoint.</p>' +
+        '<button class="btn-primario" style="background:#455A64;margin-bottom:12px;" onclick="abrirCheckpointGeneral()">🔍 Checkpoint de planes y negocios (solo lectura)</button><div id="cpGeneral"></div>' +
+        planesInfo.planes.map(p => {
+        const id = _esc(p.codigo);
+        return `<div class="plan-card">
+            <h4>${_esc(p.codigo)}</h4>
+            <div class="form-fila">
+                <div class="form-grupo"><label class="form-label">Nombre</label><input class="form-input" id="pl_nombre_${id}" value="${_esc(p.nombre)}"></div>
+            </div>
+            <label class="chk" style="margin:0 0 12px;"><input type="checkbox" id="pl_activo_${id}" ${p.activo ? 'checked' : ''}> Activo (se puede elegir en altas)</label>
+            <div class="form-fila">
+                <div class="form-grupo"><label class="form-label">Días de vigencia</label><input type="number" min="0" step="1" class="form-input" id="pl_dias_${id}" value="${p.diasVigencia == null ? '' : p.diasVigencia}" placeholder="Sin vencimiento" ${p.fijo ? 'disabled' : ''}></div>
+                <div class="form-grupo"><label class="form-label">${p.fijo ? 'Días de gracia' : 'Días de tolerancia'}</label><input type="number" min="0" step="1" class="form-input" id="pl_tol_${id}" value="${p.diasTolerancia || 0}" ${p.fijo ? 'disabled' : ''}></div>
+            </div>
+            ${p.fijo ? '<div class="ayuda" style="margin:-4px 0 8px;">🔒 Duración fija de la prueba: 7 días + 3 de gracia. No se puede cambiar.</div>' : ''}
+            <div class="plan-mods">${mods.map(m => `<label><input type="checkbox" id="pl_mod_${id}_${m.clave}" ${p.modulos[m.clave] ? 'checked' : ''}> ${_esc(m.nombre)}</label>`).join('')}</div>
+            <button class="btn-primario btn-verde" id="pl_btn_${id}" onclick="guardarPlanUI('${id}')">Guardar ${_esc(p.nombre)}</button>
+        </div>`;
+    }).join('') + '<div id="preciosZona" style="margin-top:6px;"><div class="ayuda">Cargando precios…</div></div>';
+    cargarPreciosAdmin();
+}
+
+// V6: antes de crear los planes se muestra qué negocios actuales perderían
+// módulos encendidos (compatibilidad: nada cambia hasta confirmar).
+let _previaPlanes = null;
+async function cargarPreviaPlanes() {
+    const cont = document.getElementById('planesPrevia');
+    try {
+        const res = await _adminApi('previsualizarPlanes');
+        if (res.error) { cont.textContent = '❌ ' + res.error; return; }
+        _previaPlanes = res;
+        const nombres = {}; res.planesIniciales.forEach(p => nombres[p.codigo] = p.nombre);
+        const filas = res.planesIniciales.map(p => '<li><b>' + _esc(p.nombre) + '</b>: venta, cobro y buscador' +
+            (p.modulos.length ? ', ' + p.modulos.map(_nombreModuloPrevia).join(', ') : '') + '</li>').join('');
+        const afectados = res.impacto.filter(i => i.pierde.length);
+        const noRec = res.impacto.filter(i => !i.reconocido);
+        cont.innerHTML = '<b>Planes que se crean (después se pueden editar):</b><ul style="margin:4px 0 8px 18px;">' + filas + '</ul>' +
+            (afectados.length
+                ? '<div style="color:#C62828;font-weight:700;">⚠️ Estos negocios dejarían de usar módulos que hoy tienen encendidos:</div><ul style="margin:4px 0 8px 18px;">' +
+                  afectados.map(i => '<li>' + _esc(i.prefijo) + ' (' + _esc(nombres[i.plan] || i.plan) + '): ' + i.pierde.map(_esc).join(', ') + '</li>').join('') +
+                  '</ul>Si no corresponde, después de crear los planes cambiales el plan o editá el plan.'
+                : '<div style="color:#2E7D32;font-weight:700;">✅ Ningún negocio actual pierde módulos que tenga encendidos.</div>') +
+            (noRec.length ? '<div style="margin-top:6px;">Sin cambios (su plan no es PRUEBA/BÁSICO/PRO, siguen como hoy): ' + noRec.map(i => _esc(i.prefijo) + (i.plan ? ' (' + _esc(i.plan) + ')' : '')).join(', ') + '</div>' : '');
+    } catch (e) { cont.textContent = 'No se pudo calcular el impacto (sin conexión).'; }
+}
+function _nombreModuloPrevia(clave) {
+    const m = ((_previaPlanes && _previaPlanes.modulosImplementados) || []).find(x => x.clave === clave);
+    return m ? _esc(m.nombre) : _esc(clave);
+}
+
+async function crearPlanesIniciales() {
+    if (_creandoPlanes || planesInfo.estado !== 'OK' || planesInfo.existe) return;   // V13: solo si el servidor confirmó que no existe
+    if (_previaPlanes && _previaPlanes.impacto.some(i => i.pierde.length) &&
+        !confirm('Hay negocios que dejarían de usar módulos que hoy tienen encendidos (ver la lista).\n\n¿Crear los planes igual?')) return;
+    const btn = document.getElementById('btnInitPlanes');
+    _creandoPlanes = true; btn.disabled = true; btn.textContent = 'Creando...';
+    try {
+        const res = await _adminApi('inicializarPlanes', { confirmar: true });
+        if (res.error) toast('Error: ' + res.error, 'rojo');
+        else toast('✅ Planes creados', 'verde');
+    } catch (e) { toast('Error de conexión: se vuelve a consultar el servidor', 'rojo'); }
+    finally { _creandoPlanes = false; }
+    planesInfo.estado = 'CARGANDO';   // se muestra lo que diga el servidor, no lo que se supone
+    await cargarPlanes();
+}
+
+async function guardarPlanUI(codigo) {
+    const v = id => document.getElementById(id);
+    const dias = v('pl_dias_' + codigo).value.trim(), tol = v('pl_tol_' + codigo).value.trim();
+    if ((dias !== '' && !/^\d+$/.test(dias)) || (tol !== '' && !/^\d+$/.test(tol))) { toast('Los días deben ser números enteros', 'rojo'); return; }
+    const modulos = {};
+    (planesInfo.modulosImplementados || []).forEach(m => { modulos[m.clave] = v('pl_mod_' + codigo + '_' + m.clave).checked; });
+    const plan = { codigo, nombre: v('pl_nombre_' + codigo).value.trim(), activo: v('pl_activo_' + codigo).checked,
+                   diasVigencia: dias, diasTolerancia: tol === '' ? 0 : tol, modulos };
+    const btn = v('pl_btn_' + codigo); btn.disabled = true;
+    try {
+        const res = await _adminApi('guardarPlan', { plan });
+        if (res.error) toast('Error: ' + res.error, 'rojo');
+        else { toast(res.mensaje || '✅ Plan guardado', 'verde'); await cargarPlanes(); renderPlanes(); cargarClientes(); }
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+    finally { if (document.getElementById('pl_btn_' + codigo)) document.getElementById('pl_btn_' + codigo).disabled = false; }
+}
+
+// ── PLAN Y MÓDULOS DE UN CLIENTE (V6) ─────────────────────────────
+let pcPrefijo = '';
+
+async function abrirModalPlanCliente(prefijo) {
+    if (!prefijo) return;
+    pcPrefijo = prefijo;
+    document.getElementById('pcPrefijo').textContent = prefijo;
+    const c = clientesCargados.find(x => x.prefijo === prefijo) || {};
+    const sel = document.getElementById('pcPlan');
+    sel.innerHTML = (planesInfo.planes || []).filter(p => (p.activo || p.codigo === c.plan) && (p.codigo !== 'PRUEBA' || c.plan === 'PRUEBA')) // V8: no se vuelve a PRUEBA
+        .map(p => '<option value="' + _esc(p.codigo) + '">' + _esc(p.nombre) + (p.activo ? '' : ' (inactivo)') + '</option>').join('');
+    document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Cargando…</div>';
+    document.getElementById('pcPlanAyuda').textContent = planesInfo.estado !== 'OK' ? _textoPlanesNoListos() : (planesInfo.existe ? '' : 'Primero creá los planes (🧩 Planes).');
+    _renderPruebaCliente(c);
+    document.getElementById('pcCambio').style.display = 'none'; _previaCambio = null;
+    document.getElementById('pcCheckpoint').innerHTML = '';
+    document.getElementById('modalPlanCliente').classList.add('visible');
+    await cargarModulosCliente();
+}
+
+function cerrarModalPlanCliente() {
+    document.getElementById('modalPlanCliente').classList.remove('visible');
+    pcPrefijo = '';
+}
+
+function renderModulosCliente(res) {
+    const cont = document.getElementById('pcModulos');
+    if (res.error) { cont.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(res.error) + '</div>'; return; }
+    if (res.plan && [...document.getElementById('pcPlan').options].some(o => o.value === res.plan)) document.getElementById('pcPlan').value = res.plan;
+    document.getElementById('pcPlanAyuda').textContent = res.planReconocido ? ('Plan actual: ' + res.planNombre) :
+        ('Plan actual "' + (res.plan || 'sin plan') + '" no está en la tabla de planes: hoy manda solo la configuración del negocio. Elegí un plan para ordenarlo.');
+    document.getElementById('pcModulosAyuda').innerHTML = res.editable
+        ? 'Plan <b>Personalizado</b>: elegí los módulos uno por uno (dentro de lo que permite PLANES_VAO).'
+        : 'Los módulos de este plan los define <b>PLANES_VAO</b> y no se cambian uno por uno. Si hay diferencias, usá el checkpoint de arriba. Para elegir módulos sueltos, pasalo a Personalizado.';
+    cont.innerHTML = res.modulos.map(m => {
+        const motivo = m.permitidoPorPlan === false ? 'el plan no lo incluye' : (!m.interruptor ? 'apagado para este negocio' : '');
+        const bloqueado = !res.editable || (m.permitidoPorPlan === false && !m.interruptor); // V9: solo PERSONALIZADO se edita
+        return `<div class="modulo-fila">
+            <div><strong>${_esc(m.nombre)}</strong><span class="modulo-estado">${m.efectivo ? '✅ Funciona' : '⛔ No funciona'}${motivo ? ' — ' + motivo : ''}</span></div>
+            <input type="checkbox" ${m.interruptor ? 'checked' : ''} ${bloqueado ? 'disabled' : ''} title="Encendido para este negocio"
+                   onchange="cambiarModuloCliente('${_esc(m.clave)}', this.checked, this)">
+        </div>`;
+    }).join('');
+}
+
+async function cargarModulosCliente() {
+    cargarCheckpointCliente();
+    try { renderModulosCliente(await _adminApi('getModulosCliente', { prefijo: pcPrefijo })); }
+    catch (e) { document.getElementById('pcModulos').innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+
+async function cambiarModuloCliente(clave, activo, chk) {
+    chk.disabled = true;
+    try {
+        const res = await _adminApi('setModuloCliente', { prefijo: pcPrefijo, modulo: clave, activo });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); await cargarModulosCliente(); return; }
+        renderModulosCliente(res);
+        toast(activo ? '✅ Módulo encendido' : 'Módulo apagado', activo ? 'verde' : '');
+    } catch (e) { toast('Error de conexión', 'rojo'); await cargarModulosCliente(); }
+}
+
+// V9: cambiar de plan = 1) vista previa de módulos que se activan/desactivan, 2) confirmar.
+let _previaCambio = null;
+async function confirmarCambioPlan() {
+    const sel = document.getElementById('pcPlan');
+    const plan = sel.value; if (!plan) return;
+    const box = document.getElementById('pcCambio');
+    box.style.display = 'block'; box.innerHTML = '<div class="ayuda">Calculando…</div>';
+    try {
+        const r = await _adminApi('previsualizarCambioPlan', { prefijo: pcPrefijo, plan });
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>' +
+            (r.requierePago ? '<button class="btn-accion" style="margin-top:6px;background:#E65100;color:white;" onclick="const pre=pcPrefijo; cerrarModalPlanCliente(); abrirModalVigencia(pre);">💳 Ir a Vigencia y pagos</button>' : ''); return; }
+        _previaCambio = r;
+        const lista = (t, arr, color) => arr.length ? '<div style="color:' + color + ';margin-top:4px;">' + t + ' <b>' + arr.map(_esc).join(', ') + '</b></div>' : '';
+        box.innerHTML = '<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:10px;padding:10px;font-size:0.84rem;">' +
+            'Pasar <b>' + _esc(r.prefijo) + '</b> de <b>' + _esc(r.planActual || '—') + '</b> a <b>' + _esc(r.planNombre) + '</b>:' +
+            (r.seActivan.length || r.seDesactivan.length ? lista('✅ Se activan:', r.seActivan, '#2E7D32') + lista('⛔ Se desactivan:', r.seDesactivan, '#C62828') : '<div style="margin-top:4px;">Los módulos quedan igual.</div>') +
+            (r.noDefinidos.length ? '<div class="ayuda">PLANES_VAO no define: ' + r.noDefinidos.map(_esc).join(', ') + ' (se dejan como están).</div>' : '') +
+            (r.contradicciones && r.contradicciones.length ? r.contradicciones.map(c => '<div class="ayuda" style="color:#E65100;">⚠️ ' + _esc(c.mensaje) + '</div>').join('') : '') +
+            (r.avisoVigencia ? '<div class="ayuda" style="color:#E65100;">ℹ️ ' + _esc(r.avisoVigencia) + '</div>' : '') +
+            '<div class="ayuda">No se tocan ventas, fechas, PIN ni estado.</div>' +
+            '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'pcCambio\').style.display=\'none\'">Cancelar</button>' +
+            '<button class="btn-accion" id="btnConfCambio" style="background:var(--verde);color:white;" onclick="aplicarCambioPlan()">✅ Confirmar cambio</button></div></div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+
+async function aplicarCambioPlan() {
+    if (!_previaCambio) return;
+    const btn = document.getElementById('btnConfCambio'); btn.disabled = true;
+    try {
+        const res = await _adminApi('cambiarPlanCliente', { prefijo: pcPrefijo, plan: _previaCambio.planNuevo, firma: _previaCambio.firma });
+        if (res.error) {
+            toast('Error: ' + res.error, 'rojo');
+            if (res.firmaVieja) { _previaCambio = null; await confirmarCambioPlan(); return; } // V10: algo cambió → vista previa nueva
+            if (res.cambioPendiente) { await cargarCheckpointCliente(); }
+            btn.disabled = false; return;
+        }
+        document.getElementById('pcCambio').innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(res.mensaje) +
+            (res.modulos ? '<br>Activos: <b>' + res.modulos.activos.map(_esc).join(', ') + '</b>' + (res.modulos.inactivos.length ? ' · Inactivos: ' + res.modulos.inactivos.map(_esc).join(', ') : '') : '') + '</div>';
+        toast(res.mensaje, 'verde');
+        _previaCambio = null;
+        await cargarModulosCliente();
+        await cargarClientes();
+        _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
+        if (res.aviso) alert('ℹ️ ' + res.aviso); // V12: ya no abre "Renovar días" (los planes pagos se extienden con 💳 Vigencia y pagos)
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
+}
+
+async function toggleActivo(prefijo, estaActivo) {
+    const accion = estaActivo ? 'suspender' : 'activar';
+    if (!confirm('¿' + (estaActivo ? 'Suspender' : 'Activar') + ' al cliente ' + prefijo + '?')) return;
+
+    try {
+        const payload = { token: tokenAdmin, prefijo: prefijo };
+        const data    = encodeURIComponent(JSON.stringify(payload));
+        const action  = estaActivo ? 'suspenderCliente' : 'activarCliente';
+        const r       = await fetch(API_URL + '?action=' + action + '&data=' + data, { redirect: 'follow' });
+        const res     = await r.json();
+
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+
+        toast(estaActivo ? '🔒 Cliente suspendido' : '✅ Cliente activado', estaActivo ? '' : 'verde');
+        await cargarClientes();
+    } catch(e) {
+        toast('Error de conexión', 'rojo');
+    }
+}
+
+// ── VIGENCIA Y PAGOS (V12) ────────────────────────────────────────
+// Reemplaza "Renovar vigencia" (días manuales). Todo pasa por vista previa + confirmación;
+// el servidor vuelve a validar y calcula las fechas. Los pagos REALES siguen bloqueados:
+// en STAGING se registran pagos SIMULADOS (sin dinero real).
+let vigenciaPrefijoActual = '', _vpEstado = null, _vpPrevia = {}, _vpClave = '';
+
+const ESTADOS_COMERCIALES = {
+    VIGENTE:             ['✅ Vigente', '#2E7D32'],
+    EN_TOLERANCIA:       ['⏳ En tolerancia', '#E65100'],
+    VENCIDO:             ['⛔ Vencido', '#C62828'],
+    HISTORICO_SIN_FECHA: ['⚠️ Pendiente de regularizar (sin vencimiento)', '#B26A00'],
+    HISTORICO_CON_FECHA: ['⚠️ Pendiente de regularizar (fecha sin pago registrado)', '#B26A00'],
+    DESINCRONIZADO:      ['⚠️ Fecha Vence distinta del historial', '#C62828']
+};
+const MEDIOS_PAGO = [['TRANSFERENCIA', 'Transferencia'], ['MERCADO_PAGO', 'Mercado Pago'], ['EFECTIVO', 'Efectivo'], ['OTRO', 'Otro']];
+const TIPOS_REGISTRO = { PAGO: '💵 Pago', PAGO_SIMULADO: '🧪 Pago simulado', CORTESIA: '🎁 Cortesía (sin pago)', REGULARIZACION: '🛠️ Regularización', SINCRONIZACION: '🔄 Sincronización' };
+
+function _nuevaClave() {
+    try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    const a = new Uint8Array(16); crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+}
+function _hoyISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+// Lista de clientes: estado comercial (solo informa; no bloquea a nadie)
+function _badgeComercial(c) {
+    const k = c.comercial;
+    if (!k || k.tipo !== 'PAGO') return '';
+    let h = '';
+    if (k.historico) h += '<br><span class="badge badge-pendiente" title="Plan pago sin pago registrado: sigue operando. Regularizalo en 💳 Vigencia y pagos.">⚠️ Pendiente de regularizar</span>';
+    else if (k.estado === 'DESINCRONIZADO') h += '<br><span class="badge badge-inactivo">⚠️ Revisar fecha (historial)</span>';
+    else if (k.proximaRenovacion) h += '<br><span class="ayuda" style="font-size:0.72rem;">Renueva el ' + _esc(k.proximaRenovacion) + '</span>';
+    if (k.pagoEnCurso) h += '<br><span class="badge badge-inactivo">⏳ Pago a medio registrar</span>';
+    return h;
+}
+function _alertaRegularizar() {
+    const pend = clientesCargados.filter(c => c.comercial && c.comercial.tipo === 'PAGO' && c.comercial.historico);
+    const cortados = clientesCargados.filter(c => c.comercial && c.comercial.pagoEnCurso);
+    let h = '';
+    if (pend.length) h += '<div class="alerta-regularizar" id="alertaRegularizar">⚠️ <b>' + pend.length + (pend.length === 1 ? ' negocio pago pendiente' : ' negocios pagos pendientes') +
+        ' de regularizar</b>: ' + pend.map(c => '<a href="#" onclick="abrirModalVigencia(\'' + _esc(c.prefijo) + '\');return false;">' + _esc(c.prefijo) + '</a>' +
+        (c.comercial.estado === 'HISTORICO_SIN_FECHA' ? ' (sin vencimiento)' : ' (sin pago registrado)')).join(', ') +
+        '.<br><span style="font-size:0.8rem;">Siguen operando: no se bloquean ni cambia ninguna fecha sola. Regularizalos con motivo en 💳 Vigencia y pagos.</span></div>';
+    if (cortados.length) h += '<div class="alerta-regularizar" style="border-color:#E53935;background:#FFEBEE;color:#B71C1C;">⏳ Pago a medio registrar: ' +
+        cortados.map(c => '<a href="#" onclick="abrirModalVigencia(\'' + _esc(c.prefijo) + '\');return false;">' + _esc(c.prefijo) + '</a>').join(', ') + '. Abrí la ficha y completalo.</div>';
+    return h;
+}
+
+function abrirModalVigencia(prefijo) {
+    if (!prefijo) return;
+    vigenciaPrefijoActual = prefijo; _vpEstado = null; _vpPrevia = {}; _vpClave = _nuevaClave();
+    document.getElementById('vigenciaPrefijo').textContent = prefijo;
+    document.getElementById('vpContenido').innerHTML = '<div class="ayuda">Cargando…</div>';
+    document.getElementById('modalVigencia').classList.add('visible');
+    cargarVigenciaPagos();
+}
+
+function cerrarModalVigencia() {
+    document.getElementById('modalVigencia').classList.remove('visible');
+    vigenciaPrefijoActual = ''; _vpEstado = null; _vpPrevia = {};
+}
+
+async function cargarVigenciaPagos() {
+    const pre = vigenciaPrefijoActual; if (!pre) return;
+    try {
+        const r = await _adminApi('estadoVigenciaCliente', { prefijo: pre });
+        if (pre !== vigenciaPrefijoActual) return;
+        if (r.error) { document.getElementById('vpContenido').innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        _vpEstado = r; _vpPrevia = {};
+        renderVigenciaPagos();
+    } catch (e) { document.getElementById('vpContenido').innerHTML = '<div class="ayuda">📡 Error de conexión. Tocá Actualizar.</div>'; }
+}
+
+function _dato(t, v) { return '<div class="vp-dato"><span>' + t + '</span><b>' + v + '</b></div>'; }
+
+function renderVigenciaPagos() {
+    const r = _vpEstado; if (!r) return;
+    const k = r.comercial || {};
+    const c = clientesCargados.find(x => x.prefijo === r.prefijo) || {};
+    const planNom = cod => ((planesInfo.planes || []).find(p => p.codigo === cod) || {}).nombre || cod || '—';
+    let h = '';
+
+    // Bloqueos que se resuelven primero
+    if (r.pagoEnCurso) h += '<div class="vp-aviso" style="background:#FFEBEE;border:1px solid #E57373;" id="vpPagoEnCurso">⏳ <b>Hay un pago a medio registrar</b> (se cortó el servidor). ' +
+        'Antes de cualquier otra cosa, completalo: no se duplica.<br><button class="btn-accion" style="margin-top:6px;background:#C62828;color:white;" onclick="vpRecuperar(this)">Revisar y completar el pago</button><div id="vpRecuperarBox"></div></div>';
+    if (r.cambioPlanPendiente) h += '<div class="vp-aviso" style="background:#FFEBEE;border:1px solid #E57373;">⚠️ Hay un <b>cambio de plan sin terminar</b>: resolvelo en 🧩 Plan → checkpoint antes de registrar movimientos.</div>';
+
+    // Resumen
+    if (r.plan === 'PRUEBA') {
+        const pr = r.prueba;
+        h += '<div class="vp-grid">' + _dato('Plan asignado', '🧪 Prueba gratuita') +
+            _dato('Estado', pr ? (pr.estado === 'ACTIVA' ? 'Activa hasta ' + _esc(pr.venceTxt) : pr.estado === 'GRACIA' ? 'Gracia hasta ' + _esc(pr.finGraciaTxt) : 'Vencida (consulta)') : (c.fechaVence ? 'Vence ' + new Date(c.fechaVence).toLocaleDateString('es-AR') : 'Sin regularizar')) +
+            _dato('Pago confirmado', 'sin pagos') + '</div>' +
+            '<div class="ayuda" style="margin-bottom:10px;">La prueba no se renueva ni se extiende. Para pasar a un plan pago, registrá el pago confirmado: el plan cambia y empieza su primer mes desde la fecha de confirmación.</div>';
+    } else {
+        const est = ESTADOS_COMERCIALES[k.estado] || [k.estado || '—', '#333'];
+        const up = k.ultimoPago;
+        h += '<div class="vp-grid">' +
+            _dato('Plan asignado', _esc(planNom(r.plan))) +
+            _dato('Estado de vigencia', '<span style="color:' + est[1] + ';" id="vpEstadoTxt">' + est[0] + '</span>') +
+            _dato('Último pago confirmado', up ? _esc(up.fecha) + ' · $' + Number(up.importe).toLocaleString('es-AR') + (up.simulado ? ' <span style="color:#6A1B9A;">(SIMULADO)</span>' : '') +
+                '<br><span style="font-weight:400;font-size:0.76rem;">' + _esc(up.medio || '') + (up.referencia ? ' · ref. ' + _esc(up.referencia) : '') + '</span>' : 'sin pagos registrados') +
+            _dato('Período actual', k.periodo ? (k.periodo.inicio ? _esc(k.periodo.inicio) + ' al ' : 'hasta el ') + _esc(k.periodo.fin) +
+                (k.periodo.tipo && k.periodo.tipo !== 'PAGO_SIMULADO' && k.periodo.tipo !== 'PAGO' ? '<br><span style="font-weight:400;font-size:0.76rem;">' + _esc(TIPOS_REGISTRO[k.periodo.tipo] || k.periodo.tipo) + '</span>' : '') : '—') +
+            _dato('Próxima renovación', k.proximaRenovacion ? _esc(k.proximaRenovacion) : '—') +
+            _dato('Fin del precio promocional', k.finPromo ? _esc(k.finPromo) : '— (sin oferta)') + '</div>';
+        if (k.historico) h += '<div class="vp-aviso" style="background:#FFF8E1;border:1px solid #FFB300;">⚠️ <b>PENDIENTE DE REGULARIZAR</b>: plan pago ' +
+            (k.estado === 'HISTORICO_SIN_FECHA' ? 'sin vencimiento' : 'con fecha pero sin pago registrado') + '. Sigue operando; nada cambia solo. ' +
+            'Regularizalo abajo (con motivo) o registrá un pago.</div>';
+    }
+
+    // Sincronizar (Fecha Vence ≠ historial)
+    if (r.desincronizado) h += '<div class="vp-caja" style="border-color:#E57373;"><h4>🔄 La Fecha Vence de la planilla no coincide con el historial</h4>' +
+        '<div class="ayuda">Vale el historial de pagos. Escribí el motivo y revisá la vista previa.</div>' +
+        '<input class="form-input" id="vpSincMotivo" maxlength="200" placeholder="Motivo (ej.: edición manual de la planilla)">' +
+        '<button class="btn-accion" style="margin-top:6px;background:#1565C0;color:white;" onclick="vpPrevia(\'sincronizarVigencia\', this)">Vista previa</button><div id="vpBox_sincronizarVigencia"></div></div>';
+
+    // Registrar pago
+    h += '<div class="vp-caja"><h4>💵 Registrar pago confirmado' + (r.pagosSimulados ? ' <span style="color:#6A1B9A;">(SIMULADO · STAGING)</span>' : '') + '</h4>';
+    if (!r.pagosSimulados) {
+        h += '<div class="ayuda" id="vpPagoBloqueado">🔒 Bloqueado: los pagos reales se habilitan cuando el contrato digital esté implementado y revisado. No se registra nada.</div>';
+    } else if (!(r.contratables || []).length) {
+        h += '<div class="ayuda">No hay planes pagos contratables en PLANES_VAO.</div>';
+    } else {
+        const def = (r.contratables.find(p => p.codigo === r.plan) || r.contratables[0]);
+        h += '<div class="ayuda" style="margin-bottom:6px;">Sin dinero real. Un pago = <b>un mes calendario</b>. Si todavía está vigente, el mes nuevo empieza al terminar el actual; si venció (o viene de PRUEBA), empieza hoy. ' +
+            'Elegir otro plan acá lo cambia <b>al confirmar este pago</b> (sin prorrateo).</div>' +
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Plan que paga</label><select class="form-input" id="vpPlan" onchange="vpPrecioDePlan()">' +
+            r.contratables.map(p => '<option value="' + _esc(p.codigo) + '"' + (p.codigo === def.codigo ? ' selected' : '') + '>' + _esc(p.nombre) + (p.precioRegular ? ' — $' + Number(p.precioRegular).toLocaleString('es-AR') : '') + '</option>').join('') + '</select></div>' +
+            '<div class="form-grupo"><label class="form-label">Importe recibido ($)</label><input class="form-input" id="vpImporte" inputmode="numeric" maxlength="9" value="' + (def.precioRegular || '') + '"></div></div>' +
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Medio</label><select class="form-input" id="vpMedio">' + MEDIOS_PAGO.map(m => '<option value="' + m[0] + '">' + m[1] + '</option>').join('') + '</select></div>' +
+            '<div class="form-grupo"><label class="form-label">Fecha del pago</label><input type="date" class="form-input" id="vpFechaPago" max="' + _hoyISO() + '" value="' + _hoyISO() + '"></div></div>' +
+            '<div class="form-grupo"><label class="form-label">Referencia (opcional)</label><input class="form-input" id="vpReferencia" maxlength="80" placeholder="N.º de operación o comprobante"></div>' +
+            '<button class="btn-accion" id="vpBtnPagoPrevia" style="background:#2E7D32;color:white;" onclick="vpPrevia(\'confirmarPagoRecibido\', this)">Vista previa del pago</button><div id="vpBox_confirmarPagoRecibido"></div>';
+    }
+    h += '</div>';
+
+    if (r.plan !== 'PRUEBA') {
+        // Cortesía
+        h += '<div class="vp-caja"><h4>🎁 Cortesía sin pago (1 a 7 días)</h4>';
+        h += r.puedeCortesia
+            ? '<div class="ayuda" style="margin-bottom:6px;">No es un pago, no cambia el plan ni consume promociones. Máximo una por período contratado; no se encadenan.</div>' +
+              '<div class="form-fila"><div class="form-grupo" style="max-width:120px;"><label class="form-label">Días</label><select class="form-input" id="vpCortesiaDias">' + [1,2,3,4,5,6,7].map(n => '<option>' + n + '</option>').join('') + '</select></div>' +
+              '<div class="form-grupo"><label class="form-label">Motivo</label><input class="form-input" id="vpCortesiaMotivo" maxlength="200" placeholder="Ej.: demora del banco en acreditar"></div></div>' +
+              '<button class="btn-accion" style="background:#6A1B9A;color:white;" onclick="vpPrevia(\'registrarCortesia\', this)">Vista previa</button><div id="vpBox_registrarCortesia"></div>'
+            : '<div class="ayuda" id="vpCortesiaNo">' + (k.historico ? 'Primero regularizá o registrá un pago (la cortesía es sobre un período contratado).' : 'Ya se usó la cortesía de este período (máximo una; no se encadenan).') + '</div>';
+        h += '</div>';
+        // Regularizar
+        if (r.puedeRegularizar) {
+            h += '<div class="vp-caja" style="border-color:#FFB300;"><h4>🛠️ Regularizar vigencia (sin pago registrado)</h4>' +
+                '<div class="ayuda" style="margin-bottom:6px;">Para negocios pagos anteriores a v033. No inventa pagos: fija el fin del período que VAO ya conoce, con motivo. Como máximo hasta el <b>' +
+                new Date(r.limiteRegularizar + 'T12:00:00').toLocaleDateString('es-AR') + '</b> (un mes calendario). Más allá, registrá pagos.</div>' +
+                '<div class="form-fila"><div class="form-grupo"><label class="form-label">Vigente hasta (incluido)</label><input type="date" class="form-input" id="vpRegFin" max="' + _esc(r.limiteRegularizar) + '"></div>' +
+                '<div class="form-grupo"><label class="form-label">Desde (opcional)</label><input type="date" class="form-input" id="vpRegInicio"></div></div>' +
+                '<div class="form-grupo"><label class="form-label">Motivo</label><input class="form-input" id="vpRegMotivo" maxlength="200" placeholder="Ej.: cliente al día según acuerdo de octubre"></div>' +
+                '<button class="btn-accion" style="background:#E65100;color:white;" onclick="vpPrevia(\'regularizarVigencia\', this)">Vista previa</button><div id="vpBox_regularizarVigencia"></div></div>';
+        }
+    }
+
+    // Historial
+    const hist = r.historial || [];
+    h += '<div class="vp-caja"><h4>📜 Historial (' + hist.length + ')</h4>' + (hist.length ? '<div style="overflow-x:auto;"><table class="vp-hist"><thead><tr><th>Tipo</th><th>Plan</th><th>Período</th><th>Detalle</th></tr></thead><tbody>' +
+        hist.map(x => '<tr><td>' + _esc(TIPOS_REGISTRO[x.tipo] || x.tipo) + (x.ciclo ? '<br><span class="ayuda">' + _esc(x.ciclo) + '</span>' : '') + '</td><td>' + _esc(x.plan) + '</td><td>' +
+            (x.inicio ? _esc(x.inicio) + ' → ' : 'hasta ') + _esc(x.fin) + '</td><td>' +
+            (x.importe ? '$' + Number(x.importe).toLocaleString('es-AR') + ' · ' + _esc(x.medio) + (x.referencia ? ' · ' + _esc(x.referencia) : '') : '') +
+            (x.motivo ? (x.importe ? '<br>' : '') + _esc(x.motivo) : '') + '<br><span class="ayuda">' + _esc(x.admin || '') + '</span></td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="ayuda">Sin registros todavía.</div>') + '</div>';
+
+    document.getElementById('vpContenido').innerHTML = h;
+}
+
+function vpPrecioDePlan() {
+    const p = (_vpEstado.contratables || []).find(x => x.codigo === document.getElementById('vpPlan').value);
+    if (p && p.precioRegular) document.getElementById('vpImporte').value = p.precioRegular;
+}
+
+function _vpDatos(accion) {
+    const v = id => (document.getElementById(id) || {}).value || '';
+    if (accion === 'confirmarPagoRecibido') return { plan: v('vpPlan'), importe: v('vpImporte').replace(/\D/g, ''), medio: v('vpMedio'), fechaPago: v('vpFechaPago'), referencia: v('vpReferencia').trim(), clave: _vpClave };
+    if (accion === 'registrarCortesia')     return { dias: v('vpCortesiaDias'), motivo: v('vpCortesiaMotivo').trim() };
+    if (accion === 'regularizarVigencia')   return { fin: v('vpRegFin'), inicio: v('vpRegInicio'), motivo: v('vpRegMotivo').trim() };
+    if (accion === 'sincronizarVigencia')   return { motivo: v('vpSincMotivo').trim() };
+    return {};
+}
+
+function _vpResumenPrevia(accion, r) {
+    const L = (t, v) => '<div>' + t + ': <b>' + v + '</b></div>';
+    if (accion === 'confirmarPagoRecibido') return '<div style="font-weight:800;margin-bottom:4px;">' + (r.planActual === r.planNuevo ? 'Renovación de ' : 'Pago de ') + _esc(r.planNombre) + '</div>' +
+        L('Período', _esc(r.inicio) + ' al ' + _esc(r.fin) + ' (incluido)') + L('Próxima renovación', _esc(r.proxima)) +
+        L('Tipo', r.ciclo === 'RENOVACION' ? 'renovación encadenada (sin superponer ni perder días)' : 'ciclo nuevo desde hoy') +
+        L('Importe', '$' + Number(r.importe).toLocaleString('es-AR') + ' · ' + _esc(r.medio) + (r.referencia ? ' · ref. ' + _esc(r.referencia) : '')) +
+        (r.planActual !== r.planNuevo ? L('Plan', _esc(r.planActual) + ' → ' + _esc(r.planNuevo)) : '') +
+        (r.seActivan && r.seActivan.length ? '<div style="color:#2E7D32;">✅ Se activan: <b>' + r.seActivan.map(_esc).join(', ') + '</b></div>' : '') +
+        (r.seDesactivan && r.seDesactivan.length ? '<div style="color:#C62828;">⛔ Se desactivan: <b>' + r.seDesactivan.map(_esc).join(', ') + '</b></div>' : '') +
+        (r.avisos || []).map(a => '<div style="color:#E65100;">ℹ️ ' + _esc(a) + '</div>').join('');
+    if (accion === 'registrarCortesia') return L('Cortesía', r.dias + (r.dias === 1 ? ' día' : ' días') + ': del ' + _esc(r.inicio) + ' al ' + _esc(r.fin)) + L('Motivo', _esc(r.motivo)) + '<div style="color:#E65100;">ℹ️ ' + _esc(r.aviso) + '</div>';
+    if (accion === 'regularizarVigencia') return L('Vencimiento hoy', _esc(r.venceActual)) + L('Queda vigente hasta', _esc(r.fin) + (r.inicio ? ' (desde ' + _esc(r.inicio) + ')' : '')) + L('Motivo', _esc(r.motivo)) +
+        '<div style="color:#E65100;">' + _esc(r.aviso) + '</div>';
+    if (accion === 'sincronizarVigencia') return L('En la planilla', _esc(r.enPlanilla)) + L('Según el historial', _esc(r.segunHistorial)) + '<div style="color:#E65100;">ℹ️ ' + _esc(r.aviso) + '</div>';
+    return '';
+}
+
+async function vpPrevia(accion, btn) {
+    const box = document.getElementById('vpBox_' + accion);
+    const d = _vpDatos(accion);
+    if (accion === 'confirmarPagoRecibido' && !/^\d+$/.test(d.importe)) { toast('Ingresá el importe (sin puntos)', 'rojo'); return; }
+    if ((accion === 'registrarCortesia' || accion === 'regularizarVigencia' || accion === 'sincronizarVigencia') && d.motivo.length < 5) { toast('Escribí el motivo (mínimo 5 caracteres)', 'rojo'); return; }
+    if (accion === 'regularizarVigencia' && !d.fin) { toast('Elegí la fecha hasta la que queda vigente', 'rojo'); return; }
+    btn.disabled = true; box.innerHTML = '<div class="ayuda">Calculando…</div>';
+    try {
+        const r = await _adminApi(accion, Object.assign({ prefijo: vigenciaPrefijoActual }, d));
+        if (r.error) {
+            box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>';
+            if (r.pagoEnCurso) await cargarVigenciaPagos();
+            return;
+        }
+        if (r.yaRegistrado) { box.innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(r.mensaje) + '</div>'; _vpClave = _nuevaClave(); await _vpTrasConfirmar(); return; }
+        _vpPrevia[accion] = { datos: d, firma: r.firma };
+        box.innerHTML = '<div class="vp-aviso" style="background:#E3F2FD;border:1px solid #90CAF9;margin-top:8px;">' + _vpResumenPrevia(accion, r) +
+            '<div class="ayuda" style="margin-top:4px;">Nada se guardó todavía.</div>' +
+            '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'vpBox_' + accion + '\').innerHTML=\'\'">Cancelar</button>' +
+            '<button class="btn-accion" id="vpConf_' + accion + '" style="background:var(--verde);color:white;" onclick="vpConfirmar(\'' + accion + '\', this)">✅ Confirmar</button></div></div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">📡 Error de conexión. No se guardó nada.</div>'; }
+    finally { btn.disabled = false; }
+}
+
+async function vpConfirmar(accion, btn) {
+    const pv = _vpPrevia[accion]; if (!pv) return;
+    const box = document.getElementById('vpBox_' + accion);
+    // si cambió algo del formulario después de la vista previa, se pide una vista previa nueva
+    if (JSON.stringify(_vpDatos(accion)) !== JSON.stringify(pv.datos)) { box.innerHTML = '<div class="ayuda" style="color:#E65100;">Cambiaste datos después de la vista previa: volvé a tocar Vista previa.</div>'; delete _vpPrevia[accion]; return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+    try {
+        const r = await _adminApi(accion, Object.assign({ prefijo: vigenciaPrefijoActual, confirmar: true, firma: pv.firma }, pv.datos));
+        if (r.error) {
+            // la ficha se vuelve a leer: si algo quedó a medio hacer, aparece arriba para completarlo
+            delete _vpPrevia[accion];
+            toast('Error: ' + r.error, 'rojo');
+            await cargarVigenciaPagos(); await cargarClientes();
+            const b2 = document.getElementById('vpBox_' + accion);
+            if (b2) b2.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>';
+            return;
+        }
+        toast(r.mensaje || '✅ Listo', 'verde');
+        if (accion === 'confirmarPagoRecibido') _vpClave = _nuevaClave(); // la próxima operación es otra
+        await _vpTrasConfirmar();
+    } catch (e) {
+        // sin respuesta: puede haberse guardado o no. Con el pago, la misma clave evita duplicar.
+        box.innerHTML = '<div class="ayuda" style="color:#E65100;">📡 Sin respuesta del servidor. ' +
+            (accion === 'confirmarPagoRecibido' ? 'Tocá <b>Confirmar</b> de nuevo: si ya se había registrado, no se duplica.' : 'Tocá Actualizar para ver si quedó registrado antes de repetir.') + '</div>' +
+            (accion === 'confirmarPagoRecibido' ? '<button class="btn-accion" id="vpConf_' + accion + '" style="margin-top:6px;background:var(--verde);color:white;" onclick="vpConfirmar(\'' + accion + '\', this)">✅ Confirmar de nuevo</button>' : '');
+    }
+}
+
+async function _vpTrasConfirmar() {
+    await cargarClientes();
+    await cargarVigenciaPagos();
+}
+
+async function vpRecuperar(btn) {
+    const box = document.getElementById('vpRecuperarBox');
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarPagoEnCurso', { prefijo: vigenciaPrefijoActual });
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        box.innerHTML = '<div class="ayuda" style="margin-top:6px;">' + _esc(r.mensaje) + '</div>' +
+            '<button class="btn-accion" id="vpRecConfirmar" style="margin-top:6px;background:#2E7D32;color:white;" onclick="vpRecuperarConfirmar(this)">✅ Completar el pago</button>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">📡 Error de conexión</div>'; }
+    finally { btn.disabled = false; }
+}
+
+async function vpRecuperarConfirmar(btn) {
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarPagoEnCurso', { prefijo: vigenciaPrefijoActual, confirmar: true });
+        if (r.error) { toast('Error: ' + r.error, 'rojo'); btn.disabled = false; return; }
+        toast(r.mensaje, 'verde');
+        await _vpTrasConfirmar();
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
+}
+
+// ── RESET PIN (V9) ──────────────────────────────────────────────────
+async function resetPin(prefijo, nombre) {
+    if (!confirm('¿Resetear el PIN de ' + prefijo + ' (' + (nombre || 'sin nombre') + ')?\n\nSe va a generar un PIN nuevo y el anterior dejará de funcionar.')) return;
+
+    try {
+        const payload = { token: tokenAdmin, prefijo: prefijo };
+        const data    = encodeURIComponent(JSON.stringify(payload));
+        const r       = await fetch(API_URL + '?action=resetPin&data=' + data, { redirect: 'follow' });
+        const res     = await r.json();
+
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+
+        alert('🔑 PIN reseteado para ' + prefijo + '\n\nPIN nuevo: ' + res.pin + '\n\nAnotalo ahora — no se puede volver a ver.');
+        toast('✅ PIN reseteado', 'verde');
+    } catch(e) {
+        toast('Error de conexión', 'rojo');
+    }
+}
+
+function abrirPOS(prefijo) {
+    window.open('pos.html?p=' + prefijo, '_blank');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────
+let _toastTimer;
+function toast(msg, tipo) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className   = 'toast visible ' + (tipo || '');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => el.classList.remove('visible'), 4000);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+if (sesionGuardada()) {
+    mostrarAdmin();
+} else {
+    document.getElementById('panelLogin').style.display = 'flex';
+}
+
+// ── V7: borrador del alta mientras se escribe ─────────────────────
+document.getElementById('modalAlta').addEventListener('input', guardarBorradorAlta);
+document.getElementById('modalAlta').addEventListener('change', guardarBorradorAlta);
+
+// ── V7 (A3): sin corrector en los cuadros de texto de las ventanas ─
+document.querySelectorAll('.modal input[type=text], .modal input:not([type]), .modal textarea').forEach(function (el) {
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('autocomplete', 'off');
+});
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const ajustar = function () {
+        document.documentElement.style.setProperty('--vv-alto', vv.height + 'px');
+        document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    };
+    vv.addEventListener('resize', ajustar);
+    vv.addEventListener('scroll', ajustar);
+    ajustar();
+})();
+document.addEventListener('focusin', function (ev) {
+    const el = ev.target;
+    if (!el.closest || !el.closest('.modal') || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    setTimeout(function () { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 300);
+});
+
+// ── V7 (B6): el botón Atrás del celular cierra la ventana abierta ─
+const CIERRES_MODAL_ADMIN = {
+    modalAlta:        function () { ocultarModalAlta(); },   // conserva lo escrito
+    modalVigencia:    function () { cerrarModalVigencia(); },
+    modalPlanCliente: function () { cerrarModalPlanCliente(); },
+    modalPlanes:      function () { cerrarModalPlanes(); }
+};
+let _modalAdminEnHistorial = null, _ignorarPopAdmin = false;
+new MutationObserver(function () {
+    const abierto = document.querySelector('.modal-overlay.visible');
+    if (abierto && !_modalAdminEnHistorial) {
+        history.pushState({ vaoModal: abierto.id }, '');
+        _modalAdminEnHistorial = abierto.id;
+    } else if (!abierto && _modalAdminEnHistorial) {
+        _modalAdminEnHistorial = null;
+        _ignorarPopAdmin = true;
+        history.back();
+    }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+window.addEventListener('popstate', function () {
+    if (_ignorarPopAdmin) { _ignorarPopAdmin = false; return; }
+    // Se cierra la ventana de ARRIBA (la última abierta en la página).
+    const abierto = [...document.querySelectorAll('.modal-overlay.visible')].pop();
+    if (abierto) {
+        _modalAdminEnHistorial = null;
+        (CIERRES_MODAL_ADMIN[abierto.id] || function () { abierto.classList.remove('visible'); })();
+    }
+});
+
+// ── V7 (A1): si quedó un alta a medio cargar, se vuelve a abrir sola ─
+async function reabrirAltaPendiente() {
+    if (!tokenAdmin || !_leerBorradorAlta()) return;
+    if (planesInfo.existe && !document.querySelector('.modal-overlay.visible')) abrirModalAlta();
+}
+
+// ── V8: PRUEBA (7 + 3) — estado y regularización controlada ───────
+function _renderPruebaCliente(c) {
+    const box = document.getElementById('pcPrueba');
+    const pr = c && c.prueba;
+    if (!pr) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'block';
+    if (pr.regularizada) {
+        box.innerHTML = '<div class="ayuda" style="font-size:0.82rem;">🧪 Prueba del <b>' + _esc(pr.altaTxt) + '</b> al <b>' + _esc(pr.venceTxt) + '</b> · gracia hasta <b>' + _esc(pr.finGraciaTxt) +
+            '</b> · hoy: <b>' + _esc(pr.estado) + (pr.estado !== 'VENCIDA' ? ' (día ' + pr.dia + ')' : '') + '</b></div>';
+        return;
+    }
+    const p = pr.propuesta || {};
+    box.innerHTML = '<div class="caja-reg" style="background:#FFF8E1;border:1px solid #FFE082;border-radius:10px;padding:10px;font-size:0.82rem;color:#5D4037;">' +
+        '⚠️ <b>PRUEBA sin regularizar</b>: ' + _esc(pr.discrepancia) + '<br>' +
+        'Propuesta: alta <b>' + _esc(p.altaTxt) + '</b>' + (p.conservaAlta ? ' (la original)' : ' (hoy: no tenía alta válida)') + ', prueba hasta <b>' + _esc(p.venceTxt) +
+        '</b>, gracia hasta <b>' + _esc(p.finGraciaTxt) + '</b> → hoy quedaría <b>' + _esc(p.estado) + '</b>' +
+        (p.estado === 'VENCIDA' ? ' (no podrá vender; sus datos quedan para consultar)' : '') + '.<br>' +
+        '<button class="btn-accion" id="btnReg" style="margin-top:8px;background:#FB8C00;color:white;" onclick="pedirRegularizar()">Regularizar con esta propuesta</button>' +
+        '<div id="regConfirmar" style="display:none;margin-top:8px;"><b>¿Confirmás?</b> No se puede deshacer ni repetir. ' +
+        '<button class="btn-accion" style="background:#C62828;color:white;" onclick="regularizarPruebaUI()">Sí, regularizar</button> ' +
+        '<button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'regConfirmar\').style.display=\'none\'">No</button></div></div>';
+}
+function pedirRegularizar() { document.getElementById('regConfirmar').style.display = 'block'; } // confirmación propia, sin ventana nativa
+async function regularizarPruebaUI() {
+    try {
+        const res = await _adminApi('regularizarPrueba', { prefijo: pcPrefijo, confirmar: true });
+        if (res.error) { toast('Error: ' + res.error, 'rojo'); return; }
+        toast(res.mensaje, res.estado === 'VENCIDA' ? 'rojo' : 'verde');
+        await cargarClientes();
+        _renderPruebaCliente(clientesCargados.find(x => x.prefijo === pcPrefijo) || {});
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+
+// ── V9: CHECKPOINT DE MÓDULOS (solo lectura) y sincronización con confirmación ──
+let _cpCliente = null;
+async function cargarCheckpointCliente() {
+    const box = document.getElementById('pcCheckpoint');
+    try {
+        const r = await _adminApi('checkpointModulos', { prefijo: pcPrefijo });
+        if (r.error) { box.innerHTML = ''; return; }
+        _cpCliente = r.negocios[0];
+        box.innerHTML = _htmlCheckpoint(_cpCliente, true);
+    } catch (e) { box.innerHTML = ''; }
+}
+function _htmlCheckpoint(n, conBoton) {
+    const si = v => v === null ? '(no figura)' : (v ? 'encendido' : 'apagado');
+    let h = '<div style="border:1px solid var(--borde);border-radius:10px;padding:10px;font-size:0.82rem;">🔍 <b>Checkpoint ' + _esc(n.prefijo) + '</b> — plan ' + _esc(n.planNombre || n.plan || '—') + ': ';
+    if (n.estado === 'CAMBIO_INCOMPLETO') { // V10: un cambio de plan quedó a mitad de camino
+        const cp = n.cambioPendiente || {};
+        const txt = v => v === null || v === undefined ? '—' : (v === true ? 'encendido' : v === false ? 'apagado' : String(v));
+        h += '<span style="color:#C62828;font-weight:800;">⛔ Cambio de plan sin terminar: ' + _esc(cp.de) + ' → ' + _esc(cp.a) + '</span>' +
+            '<div class="ayuda">No se aceptan otros cambios en este negocio hasta resolverlo. Nada se aplica sin tu confirmación.</div>' +
+            '<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:0.78rem;"><tr style="background:#ECEFF1;"><th style="text-align:left;padding:3px;">Qué</th><th>Antes</th><th>Hoy</th><th>Después</th></tr>' +
+            (cp.items || []).map(it => '<tr style="border-top:1px solid var(--borde);"><td style="padding:4px 3px;">' + _esc(it.que) + '</td><td style="text-align:center;padding:4px 6px;">' + _esc(txt(it.antes)) + '</td><td style="text-align:center;padding:4px 6px;font-weight:800;">' + _esc(txt(it.hoy)) + '</td><td style="text-align:center;padding:4px 6px;">' + _esc(txt(it.despues)) + '</td></tr>').join('') + '</table>' +
+            '<div class="ayuda">Completar: faltan ' + cp.faltaCompletar + ' paso(s) · Revertir: faltan ' + cp.faltaRevertir + ' paso(s).</div>';
+        if (conBoton) h += '<div id="cpRec" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+            '<button class="btn-accion" style="background:var(--verde);color:white;" onclick="recuperarCambioUI(\'completar\', this)">Completar el cambio (' + _esc(cp.a) + ')</button>' +
+            '<button class="btn-accion" style="background:#607D8B;color:white;" onclick="recuperarCambioUI(\'revertir\', this)">Revertir (volver a ' + _esc(cp.de) + ')</button></div>';
+        if (n.avisos && n.avisos.length) h += '<div class="ayuda">' + n.avisos.map(_esc).join('<br>') + '</div>';
+        return h + '</div>';
+    }
+    if (n.estado === 'COINCIDE') h += '<span style="color:#2E7D32;font-weight:800;">✅ CONFIG coincide con el plan</span>';
+    else if (n.estado === 'REVISAR_PLAN') h += '<span style="color:#E65100;font-weight:800;">⚠️ CONFIG coincide, pero PLANES_VAO contradice una regla</span>';
+    else if (n.estado === 'DIFERENCIAS') {
+        h += '<span style="color:#E65100;font-weight:800;">⚠️ ' + n.diferencias.length + ' diferencia' + (n.diferencias.length === 1 ? '' : 's') + '</span><ul style="margin:6px 0 0 18px;">' +
+            n.diferencias.map(d => '<li>' + _esc(d.nombre) + ': en CONFIG <b>' + si(d.enConfig) + '</b> · según el plan <b>' + si(d.segunPlan) + '</b></li>').join('') + '</ul>';
+        if (conBoton) h += '<div id="cpSync" style="margin-top:8px;"><button class="btn-accion" style="background:#FB8C00;color:white;" onclick="document.getElementById(\'cpSyncConf\').style.display=\'block\'">Sincronizar con el plan</button>' +
+            '<div id="cpSyncConf" style="display:none;margin-top:6px;"><b>¿Confirmás?</b> Se cambian solo esos interruptores en CONFIG_' + _esc(n.prefijo) + '. ' +
+            '<button class="btn-accion" style="background:#C62828;color:white;" onclick="sincronizarClienteUI()">Sí, sincronizar</button> ' +
+            '<button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'cpSyncConf\').style.display=\'none\'">No</button></div></div>';
+    } else if (n.estado !== 'REVISAR_PLAN') h += '<span style="color:#C62828;font-weight:800;">No se puede comparar</span>';
+    // V10: Fiados siempre a la vista (PRUEBA, BÁSICO y PRO lo incluyen)
+    if (n.fiados && n.fiados.regla) {
+        const sn = v => v === null ? '(no figura)' : (v ? 'SÍ' : 'NO');
+        h += '<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:' + (n.fiados.ok ? '#E8F5E9' : '#FFF3E0') + ';">' +
+            (n.fiados.ok ? '✅' : '⚠️') + ' <b>Fiados</b> — en CONFIG: <b>' + si(n.fiados.enConfig) + '</b> · en PLANES_VAO: <b>' + sn(n.fiados.enPlanilla) + '</b> · regla: <b>incluido</b>' +
+            (n.fiados.mensaje ? '<div class="ayuda" style="margin:2px 0 0;">' + _esc(n.fiados.mensaje) + '</div>' : '') + '</div>';
+    }
+    if (n.contradicciones && n.contradicciones.length) h += n.contradicciones.filter(c => !(n.fiados && n.fiados.regla && c.clave === 'extra_fiados'))
+        .map(c => '<div class="ayuda" style="color:#E65100;">⚠️ ' + _esc(c.mensaje) + '</div>').join('');
+    if (n.fiados && n.fiados.regla && n.fiados.enPlanilla === false) h += '<div class="ayuda">No se apaga Fiados en ningún negocio por esta planilla. Corregila en 🧩 Planes → Checkpoint → "Corregir reglas fijas".</div>';
+    // V10: estado de la PRUEBA (regularizada o pendiente)
+    if (n.prueba) {
+        h += '<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:' + (n.prueba.regularizada ? '#E3F2FD' : '#FFEBEE') + ';">' +
+            (n.prueba.regularizada ? '🧪 <b>PRUEBA 7 + 3</b>: ' + _esc(n.prueba.estado) + ' (día ' + n.prueba.dia + ') · vence ' + _esc(n.prueba.venceTxt) + ' · gracia hasta ' + _esc(n.prueba.finGraciaTxt)
+                                   : '🧪 <b>' + _esc(n.prueba.aviso) + '</b>') + '</div>';
+    }
+    if (n.avisos && n.avisos.length) h += '<div class="ayuda">' + n.avisos.map(_esc).join('<br>') + '</div>';
+    return h + '</div>';
+}
+async function recuperarCambioUI(modo, btn) {
+    if (!_cpCliente || !_cpCliente.cambioPendiente) return;
+    if (btn.dataset.conf !== '1') { // confirmación propia (sin confirm nativo)
+        btn.dataset.conf = '1'; btn.textContent = (modo === 'completar' ? '¿Completar? ' : '¿Revertir? ') + 'Tocá de nuevo para confirmar'; return;
+    }
+    btn.disabled = true;
+    try {
+        const r = await _adminApi('recuperarCambioPlan', { prefijo: _cpCliente.prefijo, confirmar: true, modo, firma: _cpCliente.cambioPendiente.firma });
+        toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+        await cargarCheckpointCliente(); await cargarModulosCliente(); await cargarClientes();
+    } catch (e) { toast('Error de conexión', 'rojo'); btn.disabled = false; }
+}
+async function sincronizarClienteUI() {
+    if (!_cpCliente) return;
+    try {
+        const r = await _adminApi('sincronizarModulos', { prefijo: _cpCliente.prefijo, confirmar: true, firma: _cpCliente.firma });
+        if (r.error) { toast('Error: ' + r.error, 'rojo'); await cargarCheckpointCliente(); return; }
+        toast(r.mensaje, 'verde');
+        await cargarModulosCliente();
+        document.getElementById('pcCheckpoint').insertAdjacentHTML('beforeend', '<div class="ayuda" style="color:#2E7D32;">Activos: <b>' + r.activos.map(_esc).join(', ') + '</b>' + (r.inactivos.length ? ' · Inactivos: ' + r.inactivos.map(_esc).join(', ') : '') + '</div>');
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+async function abrirCheckpointGeneral() {
+    const box = document.getElementById('cpGeneral');
+    box.innerHTML = '<div class="ayuda">Leyendo…</div>';
+    try {
+        const [pl, cm] = await Promise.all([_adminApi('checkpointPlanes'), _adminApi('checkpointModulos')]);
+        let h = '<div style="background:#ECEFF1;border-radius:12px;padding:10px;margin-bottom:12px;font-size:0.82rem;">';
+        h += '<b>PLANES_VAO</b>: ' + (pl.avisos && pl.avisos.length ? '<br>' + pl.avisos.map(a => '⚠️ ' + _esc(a)).join('<br>') : '✅ sin observaciones');
+        if (pl.corregibleFijos) h += '<br><button class="btn-accion" style="margin-top:6px;background:#FB8C00;color:white;" onclick="accionPlanes(\'corregirPlanesFijos\', this)">Corregir reglas fijas en PLANES_VAO' +
+            (pl.corregiblePrueba ? ' · PRUEBA 7 + 3' : '') + (pl.fiadosFaltan && pl.fiadosFaltan.length ? ' · Fiados en ' + pl.fiadosFaltan.map(_esc).join(', ') : '') + '</button>' +
+            '<div class="ayuda">Solo cambia la planilla de planes. Ningún negocio cambia: cada uno se revisa en su checkpoint.</div>';
+        if (pl.existe && !pl.tienePersonalizado) h += '<br><button class="btn-accion" style="margin-top:6px;background:#5E35B1;color:white;" onclick="accionPlanes(\'agregarPlanPersonalizado\', this)">Agregar plan PERSONALIZADO</button>';
+        const rs = cm.resumen || {};
+        if ((rs.cambiosIncompletos || []).length) h += '<div style="margin-top:8px;color:#C62828;font-weight:800;">⛔ Cambio de plan sin terminar: ' + rs.cambiosIncompletos.map(_esc).join(', ') + '</div>';
+        if ((rs.pruebasSinRegularizar || []).length) h += '<div style="margin-top:4px;color:#C62828;font-weight:800;">🧪 PRUEBA sin regularizar (no vencen solas): ' + rs.pruebasSinRegularizar.map(_esc).join(', ') + '</div>';
+        if ((rs.fiadosConDiferencia || []).length) h += '<div style="margin-top:4px;color:#E65100;font-weight:800;">⚠️ Fiados con diferencia: ' + rs.fiadosConDiferencia.map(_esc).join(', ') + '</div>';
+        h += '<div style="margin-top:10px;"><b>Negocios</b> (solo lectura; para sincronizar, abrí 🧩 Plan de cada uno):</div>';
+        h += (cm.negocios || []).map(n => '<div style="margin-top:4px;">' + _esc(n.prefijo) + ' · ' + _esc(n.planNombre || n.plan || '—') + ' · ' +
+            (n.estado === 'COINCIDE' ? '✅ coincide' : n.estado === 'DIFERENCIAS' ? '⚠️ ' + n.diferencias.map(d => _esc(d.nombre) + (d.enConfig ? ' de más' : ' de menos')).join(', ')
+             : n.estado === 'REVISAR_PLAN' ? '⚠️ revisar PLANES_VAO' : n.estado === 'CAMBIO_INCOMPLETO' ? '⛔ cambio sin terminar' : '❔ ' + _esc((n.avisos || []).join(' '))) +
+            (n.fiados && n.fiados.regla && !n.fiados.ok ? ' · <span style="color:#E65100;">Fiados ⚠️</span>' : '') +
+            (n.prueba ? (n.prueba.regularizada ? ' · 🧪 ' + _esc(n.prueba.estado) + ' día ' + n.prueba.dia : ' · <span style="color:#C62828;">🧪 sin regularizar</span>') : '') + '</div>').join('');
+        box.innerHTML = h + '</div>';
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+async function accionPlanes(accion, btn) {
+    if (btn.dataset.conf !== '1') { btn.dataset.conf = '1'; btn.textContent = '¿Confirmás? Tocá de nuevo'; return; } // confirmación propia
+    btn.disabled = true;
+    try {
+        const r = await _adminApi(accion, { confirmar: true });
+        toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+        await cargarPlanes(); renderPlanes(); abrirCheckpointGeneral();
+    } catch (e) { toast('Error de conexión', 'rojo'); }
+}
+
+// ══ V11: PRUEBAS Y REGISTROS (altas automáticas de planes.html) ══════════
+let _rg = null, _rgFiltro = 'TODAS';
+async function actualizarBadgeRegistros() {
+    try {
+        const r = await _adminApi('registrosPanel');
+        if (r.error) return;
+        _rg = r;
+        const n = r.enEspera + r.errores + r.duplicadosSemana;
+        const b = document.getElementById('badgeRegistros');
+        b.textContent = n; b.style.display = n ? 'inline-block' : 'none';
+        b.title = r.enEspera + ' en espera · ' + r.errores + ' con error · ' + r.duplicadosSemana + ' duplicados (7 días)';
+    } catch (e) {}
+}
+function abrirModalRegistros() { document.getElementById('modalRegistros').classList.add('visible'); cargarRegistros(); }
+function cerrarModalRegistros() { document.getElementById('modalRegistros').classList.remove('visible'); }
+async function cargarRegistros() {
+    const box = document.getElementById('registrosContenido');
+    try {
+        const r = await _adminApi('registrosPanel');
+        if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+        _rg = r; renderRegistros(); actualizarBadgeRegistros();
+    } catch (e) { box.innerHTML = '<div class="ayuda">Error de conexión</div>'; }
+}
+function _cifra(n, txt, alerta) { return '<div class="rg-cifra' + (alerta && n ? ' alerta' : '') + '"><b>' + n + '</b><span>' + txt + '</span></div>'; }
+function renderRegistros() {
+    const r = _rg, c = r.config, p = r.pruebas;
+    let h = '';
+    h += '<div style="padding:10px 12px;border-radius:12px;margin-bottom:12px;font-weight:800;' + (r.inscripcion.inscripcion === 'ABIERTA' ? 'background:#E8F5E9;color:#2E7D32;">🟢 Altas automáticas ABIERTAS' : 'background:#FFF4E5;color:#B25E00;">🟠 Nuevos registros van a LISTA DE ESPERA: ' + _esc(r.inscripcion.motivo)) + '</div>';
+    h += '<div class="rg-cifras">' +
+        _cifra(p.activas, 'Pruebas activas') + _cifra(p.gracia, 'En gracia') + _cifra(p.vencidas, 'Vencidas') +
+        _cifra(p.operando + ' / ' + c.maxSimultaneas, 'Operando / límite simultáneo') + _cifra(r.altasHoy + ' / ' + c.maxPorDia, 'Altas automáticas hoy / límite') +
+        _cifra(r.nuevosSemana, 'Comercios nuevos (7 días)') + _cifra(r.enEspera, 'En lista de espera', true) + _cifra(r.pendientesCodigo, 'Esperando código') +
+        _cifra(r.duplicadosSemana, 'Alertas de duplicado (7 días)', true) + _cifra(r.errores, 'Errores de alta', true) +
+        _cifra(r.codigosHoy + ' / ' + c.maxCodigosPorDia, 'Códigos enviados hoy') + _cifra(r.cuotaCorreo < 0 ? '—' : r.cuotaCorreo, 'Correos de Google disponibles hoy') + '</div>';
+    if (p.sinRegularizar) h += '<div class="ayuda">Incluye ' + p.sinRegularizar + ' prueba(s) anterior(es) sin regularizar, que cuentan como "operando".</div>';
+    // Configuración
+    h += '<details style="margin:10px 0;"><summary style="cursor:pointer;font-weight:800;color:#0D47A1;">⚙️ Límites y pausa de altas automáticas</summary>' +
+        '<div class="ayuda" style="margin:8px 0;">Valores iniciales para STAGING, no capacidades medidas. Solo afectan altas NUEVAS: las pruebas que ya existen no cambian.</div>' +
+        '<label class="chk" style="margin:6px 0 10px;"><input type="checkbox" id="rg_activas" ' + (c.activas ? 'checked' : '') + '> Altas automáticas activas</label>' +
+        '<div class="rg-conf">' +
+        '<div class="form-grupo"><label class="form-label">Pruebas simultáneas (máx.)</label><input class="form-input" id="rg_sim" type="number" min="0" value="' + c.maxSimultaneas + '"></div>' +
+        '<div class="form-grupo"><label class="form-label">Altas automáticas por día</label><input class="form-input" id="rg_dia" type="number" min="0" value="' + c.maxPorDia + '"></div>' +
+        '<div class="form-grupo"><label class="form-label">Códigos por correo por día</label><input class="form-input" id="rg_cod" type="number" min="0" max="90" value="' + c.maxCodigosPorDia + '"></div></div>' +
+        '<div id="rg_prev"></div><button class="btn-primario" style="background:#0D47A1;margin-top:8px;" onclick="previaConfigRegistros()">Revisar el cambio</button></details>';
+    // Solicitudes
+    const filtros = [['TODAS', 'Todas'], ['LISTA_ESPERA', 'En espera'], ['ERROR', 'Errores'], ['DUPLICADO', 'Duplicados'], ['ACTIVADA', 'Activadas'], ['CODIGO_ENVIADO', 'Esperando código']];
+    h += '<div class="rg-filtros">' + filtros.map(f => '<button class="' + (_rgFiltro === f[0] ? 'activo' : '') + '" onclick="_rgFiltro=\'' + f[0] + '\';renderRegistros()">' + f[1] + '</button>').join('') + '</div>';
+    const lista = r.solicitudes.filter(s => _rgFiltro === 'TODAS' || s.estado === _rgFiltro || (_rgFiltro === 'ERROR' && s.atascada) || (_rgFiltro === 'CODIGO_ENVIADO' && s.estado === 'HABILITADA'));
+    h += lista.length ? lista.map(_htmlSolicitud).join('') : '<div class="ayuda">No hay solicitudes en esta vista.</div>';
+    h += '<div class="ayuda" style="margin-top:14px;padding:10px;border-radius:10px;background:#ECEFF1;">🔒 ' + _esc(r.pagoBloqueado) + ' El botón "Pago recibido" se habilita cuando el contrato digital esté implementado y revisado.</div>';
+    document.getElementById('registrosContenido').innerHTML = h;
+}
+function _htmlSolicitud(s) {
+    const acciones = [];
+    if (s.estado === 'LISTA_ESPERA') acciones.push(['habilitar', 'Habilitar (excepción)', '#2E7D32']);
+    if (['CODIGO_ENVIADO', 'LISTA_ESPERA', 'HABILITADA'].includes(s.estado)) acciones.push(['rechazar', 'Rechazar', '#C62828']);
+    if (s.estado === 'ERROR' || s.atascada) acciones.push(['reintentar', 'Reintentar alta', '#0D47A1']);
+    return '<div class="rg-sol" id="sol_' + _esc(s.id) + '"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+        '<b>' + _esc(s.comercio) + '</b><span class="est est-' + _esc(s.estado) + '">' + _esc(s.estado.replace('_', ' ')) + (s.atascada ? ' (atascada)' : '') + '</span></div>' +
+        '<div>' + _esc(s.responsable) + ' · ' + _esc(s.telefono) + ' · ' + _esc(s.correo) + '</div>' +
+        '<div class="ayuda" style="margin:2px 0 0;">Pedida ' + _esc(s.fecha) + (s.prefijo ? ' · prefijo <b>' + _esc(s.prefijo) + '</b>' : '') + (s.activacion ? ' · activada ' + _esc(s.activacion) : '') +
+        (s.excepcion ? ' · excepción: ' + _esc(s.excepcion) : '') + '</div>' +
+        (s.detalle ? '<div class="ayuda" style="margin:2px 0 0;color:#8A4B00;">' + _esc(s.detalle) + '</div>' : '') +
+        (acciones.length ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + acciones.map(a =>
+            '<button class="btn-accion" style="background:' + a[2] + ';color:white;" onclick="previaAccionSolicitud(\'' + _esc(s.id) + '\',\'' + a[0] + '\')">' + a[1] + '</button>').join('') + '</div>' : '') +
+        '<div id="acc_' + _esc(s.id) + '"></div></div>';
+}
+async function previaAccionSolicitud(id, accion) {
+    const box = document.getElementById('acc_' + id);
+    box.innerHTML = '<div class="ayuda">Revisando…</div>';
+    const r = await _adminApi('registroAccion', { solicitudId: id, accion });
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-top:6px;"><div>' + _esc(r.impacto) + '</div>' +
+        (accion === 'rechazar' ? '<input class="form-input" id="mot_' + _esc(id) + '" placeholder="Motivo (opcional)" style="margin-top:6px;">' : '') +
+        '<div style="display:flex;gap:6px;margin-top:6px;"><button class="btn-accion" style="background:#eee;" onclick="document.getElementById(\'acc_' + _esc(id) + '\').innerHTML=\'\'">Cancelar</button>' +
+        '<button class="btn-accion" style="background:#0D47A1;color:white;" onclick="aplicarAccionSolicitud(\'' + _esc(id) + '\',\'' + accion + '\', this)">Confirmar</button></div></div>';
+}
+async function aplicarAccionSolicitud(id, accion, btn) {
+    btn.disabled = true;
+    const mot = document.getElementById('mot_' + id);
+    const r = await _adminApi('registroAccion', { solicitudId: id, accion, confirmar: true, motivo: mot ? mot.value : '' });
+    toast(r.error ? 'Error: ' + r.error : (r.mensaje || (r.creado ? '✅ Alta completada: ' + r.prefijo : '✅ Listo')), r.error ? 'rojo' : 'verde');
+    await cargarRegistros(); cargarClientes();
+}
+let _rgPrev = null;
+async function previaConfigRegistros() {
+    const d = { activas: document.getElementById('rg_activas').checked, maxSimultaneas: document.getElementById('rg_sim').value,
+                maxPorDia: document.getElementById('rg_dia').value, maxCodigosPorDia: document.getElementById('rg_cod').value };
+    const box = document.getElementById('rg_prev');
+    const r = await _adminApi('registrosConfig', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _rgPrev = Object.assign(d, { firma: r.firma });
+    const f = (o) => (o.activas ? 'activas' : 'PAUSADAS') + ' · ' + o.maxSimultaneas + ' simultáneas · ' + o.maxPorDia + ' por día · ' + o.maxCodigosPorDia + ' códigos/día';
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-top:8px;font-size:0.85rem;">Antes: ' + _esc(f(r.antes)) + '<br>Después: <b>' + _esc(f(r.despues)) + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="aplicarConfigRegistros(this)">Confirmar cambio</button></div></div>';
+}
+async function aplicarConfigRegistros(btn) {
+    btn.disabled = true;
+    const r = await _adminApi('registrosConfig', Object.assign({ confirmar: true }, _rgPrev));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    await cargarRegistros();
+}
+
+// ══ V11: PRECIOS Y OFERTA (en 🧩 Planes) ═════════════════════════════════
+async function cargarPreciosAdmin() {
+    const box = document.getElementById('preciosZona');
+    if (!box) return;
+    try {
+        const r = await _adminApi('getPlanesPublicos');
+        let h = '<div class="plan-card" style="border-color:#0D47A1;"><h4>💲 Precios y oferta de lanzamiento</h4>';
+        if (!r.preciosConfigurados) {
+            h += '<p class="ayuda">PLANES_VAO todavía no tiene precios. "Preparar" agrega las columnas de precio, carga los valores aprobados (BÁSICO 25.000/15.000 · PLUS 35.000/20.000 próximamente · PRO 45.000/25.000), agrega PLUS como no contratable y crea la oferta de 20 cupos. Ningún negocio cambia.</p>' +
+                 '<div id="prepPrev"></div><button class="btn-primario" style="background:#0D47A1;" onclick="previaPrepararPrecios()">Revisar qué se prepara</button>';
+        } else {
+            h += '<p class="ayuda">Los cambios valen para contrataciones NUEVAS. La página pública los toma enseguida (sin tocar el HTML).</p>';
+            h += r.planes.filter(p => p.codigo !== 'PRUEBA').map(p => {
+                const id = _esc(p.codigo);
+                if (p.cotizacion) return '<div style="margin:8px 0;"><b>' + _esc(p.nombre) + '</b>: cotización individual</div>';
+                return '<div style="border-top:1px solid var(--borde);padding-top:8px;margin-top:8px;"><b>' + _esc(p.nombre) + '</b>' + (p.proximamente ? ' <span class="ayuda">(próximamente, no contratable)</span>' : '') +
+                    '<div class="form-fila"><div class="form-grupo"><label class="form-label">Precio regular / mes</label><input class="form-input" id="pr_reg_' + id + '" inputmode="numeric" value="' + (p.precioRegular ?? '') + '"></div>' +
+                    '<div class="form-grupo"><label class="form-label">Precio de lanzamiento / mes</label><input class="form-input" id="pr_lan_' + id + '" inputmode="numeric" value="' + (p.precioLanzamiento ?? '') + '"></div></div>' +
+                    '<div id="pr_prev_' + id + '"></div><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="previaPrecio(\'' + id + '\')">Revisar cambio de precio</button></div>';
+            }).join('');
+            h += '<div style="border-top:1px solid var(--borde);padding-top:8px;margin-top:10px;"><b>🚀 Oferta de lanzamiento</b>: ' + (r.promo ? 'activa (' + r.promo.meses + ' meses)' : 'pausada, finalizada o sin cupo') +
+                 '<div class="form-fila"><div class="form-grupo"><label class="form-label">Estado</label><select class="form-select" id="pm_estado"><option value="ACTIVA">Activa</option><option value="PAUSADA">Pausada</option><option value="FINALIZADA">Finalizada</option></select></div>' +
+                 '<div class="form-grupo"><label class="form-label">Cupo total</label><input class="form-input" id="pm_cupo" inputmode="numeric" placeholder="20"></div></div>' +
+                 '<div id="pm_prev"></div><button class="btn-accion" style="background:#0D47A1;color:white;" onclick="previaPromo()">Revisar cambio de la oferta</button>' +
+                 '<div class="ayuda">Los cupos solo se confirman con contrato aceptado + primer pago (hoy bloqueado). Ninguna prueba gratuita consume cupos.</div></div>';
+        }
+        box.innerHTML = h + '</div>';
+        if (r.promo === null && document.getElementById('pm_estado')) document.getElementById('pm_estado').value = 'PAUSADA';
+    } catch (e) { box.innerHTML = '<div class="ayuda">No se pudieron cargar los precios.</div>'; }
+}
+async function previaPrepararPrecios() {
+    const box = document.getElementById('prepPrev');
+    const r = await _adminApi('prepararPreciosPlanes');
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:0.84rem;"><ul style="margin:0 0 6px 18px;">' + r.cambios.map(c => '<li>' + _esc(c) + '</li>').join('') + '</ul>' + _esc(r.nota) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPrepararPrecios(\'' + _esc(r.firma) + '\', this)">Confirmar y preparar</button></div></div>';
+}
+async function aplicarPrepararPrecios(firma, btn) {
+    btn.disabled = true;
+    const r = await _adminApi('prepararPreciosPlanes', { confirmar: true, firma });
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    await cargarPlanes(); renderPlanes();
+}
+let _prPrev = {};
+async function previaPrecio(id) {
+    const d = { plan: id, precioRegular: document.getElementById('pr_reg_' + id).value.trim(), precioLanzamiento: document.getElementById('pr_lan_' + id).value.trim() };
+    const box = document.getElementById('pr_prev_' + id);
+    const r = await _adminApi('guardarPreciosPlan', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _prPrev[id] = Object.assign(d, { firma: r.firma });
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:0.84rem;">Regular: ' + _esc(r.antes.Precio_regular || '—') + ' → <b>' + _esc(r.despues.Precio_regular || '—') + '</b> · Lanzamiento: ' +
+        _esc(r.antes.Precio_lanzamiento || '—') + ' → <b>' + _esc(r.despues.Precio_lanzamiento || '—') + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPrecio(\'' + id + '\', this)">Confirmar precio</button></div></div>';
+}
+async function aplicarPrecio(id, btn) {
+    btn.disabled = true;
+    const r = await _adminApi('guardarPreciosPlan', Object.assign({ confirmar: true }, _prPrev[id]));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    cargarPreciosAdmin();
+}
+let _pmPrev = null;
+async function previaPromo() {
+    const d = { estado: document.getElementById('pm_estado').value };
+    const cupo = document.getElementById('pm_cupo').value.trim(); if (cupo) d.cupoTotal = cupo;
+    const box = document.getElementById('pm_prev');
+    const r = await _adminApi('guardarPromocion', d);
+    if (r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'; return; }
+    _pmPrev = Object.assign(d, { firma: r.firma });
+    box.innerHTML = '<div style="background:#F3F7FC;border-radius:10px;padding:8px 10px;margin:6px 0;font-size:0.84rem;">' + _esc(r.antes.estado) + ', cupo ' + r.antes.cupoTotal + ' → <b>' + _esc(r.despues.estado) + ', cupo ' + r.despues.cupoTotal + '</b><br>' + _esc(r.impacto) +
+        '<div style="margin-top:6px;"><button class="btn-accion" style="background:#2E7D32;color:white;" onclick="aplicarPromo(this)">Confirmar</button></div></div>';
+}
+async function aplicarPromo(btn) {
+    btn.disabled = true;
+    const r = await _adminApi('guardarPromocion', Object.assign({ confirmar: true }, _pmPrev));
+    toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
+    cargarPreciosAdmin();
+}
+</script>
+</body>
+</html>
