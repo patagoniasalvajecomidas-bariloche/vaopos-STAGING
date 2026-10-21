@@ -1,0 +1,67 @@
+--- pos_v26_staging.html
++++ pos_v27_staging.html
+@@ -962,7 +962,7 @@
+ 
+ // ========== CONFIG ==========
+ const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
+-const APP_VERSION = 26;
++const APP_VERSION = 27;
+ const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
+ const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
+ 
+@@ -1180,6 +1180,10 @@
+ let ventaActual = JSON.parse(localStorage.getItem(CARRITO_KEY) || '[]');
+ let metodoPagoActual = 'efectivo';
+ let productoIngresoSel = null;
++// V27: ingreso pendiente — evita verificaciones y avisos simultáneos (solo en memoria; localStorage no cambia).
++let _ingVerificando = 0;     // hora de inicio de la verificación en curso (0 = ninguna)
++let _ingVerifId = 0;         // número de la última verificación: solo esa puede mostrar el aviso
++let _ingGuardando = false;   // true mientras viaja un envío de ingresarMercaderia (se libera al terminar, por cualquier camino)
+ let ajusteProducto = null;
+ let ajusteValor = 0;
+ let ajusteStockOriginal = 0; // V18 (P0-2): stock base que vio el cajero al elegir el producto
+@@ -2116,9 +2120,17 @@
+     // V14: si quedó un ingreso sin confirmar, se resuelve antes de abrir uno nuevo.
+     let pendiente = null;
+     try { pendiente = JSON.parse(localStorage.getItem(_ingresoEnCursoKey()) || 'null'); } catch (e) { pendiente = null; }
++    // V27: con un envío en curso no se ofrece Aceptar/Cancelar (no se puede descartar una operación que todavía viaja)
++    if (_ingGuardando) { mostrarToast('⏳ El ingreso se está enviando. Esperá la respuesta antes de volver a abrir Ingresar.', 'naranja'); return; }
++    // V27: una sola verificación por vez (se libera al responder; si se cuelga, a los 20 s se puede volver a intentar)
++    if (_ingVerificando && Date.now() - _ingVerificando < 20000) { mostrarToast('⏳ Revisando el ingreso pendiente… esperá un momento.', 'naranja'); return; }
+     if (pendiente && !pendiente._verificado) {
+         // V22 (B1): antes de preguntar, se consulta al servidor si ya llegó.
++        const miId = ++_ingVerifId; _ingVerificando = Date.now();
++        mostrarToast('⏳ Revisando si el ingreso pendiente llegó…', 'naranja');
+         verificarIngresoPendiente(pendiente).then(function (estado) {
++            if (miId !== _ingVerifId) return;   // V27: respuesta de una verificación anterior → no muestra nada
++            _ingVerificando = 0;
+             if (estado === 'registrado') { mostrarToast('📦 El ingreso pendiente ya estaba registrado: no hace falta reintentarlo', 'verde'); cargarProductos(); abrirIngreso(); return; }
+             pendiente._verificado = estado;
+             _abrirIngresoConPendiente(pendiente);
+@@ -2192,7 +2204,12 @@
+ async function verificarIngresoPendiente(pendiente) {
+     try {
+         const r = await _llamarAPI('verificarOperacion', { token: _tokenActual(), tipo: 'ingreso', id: pendiente.idOperacion });
+-        if (r && r.success && r.existe) { localStorage.removeItem(_ingresoEnCursoKey()); return 'registrado'; }
++        if (r && r.success && r.existe) {
++            // V27: se borra SOLO si el pendiente guardado es la MISMA operación (una respuesta tardía nunca borra otro pendiente)
++            let g = null; try { g = JSON.parse(localStorage.getItem(_ingresoEnCursoKey()) || 'null'); } catch (e) { g = null; }
++            if (g && g.idOperacion === pendiente.idOperacion) localStorage.removeItem(_ingresoEnCursoKey());
++            return 'registrado';
++        }
+         if (r && r.success) return 'no_llego';
+     } catch (e) {}
+     return 'sin_respuesta';
+@@ -2285,10 +2302,12 @@
+     const btn = document.getElementById('ingBtnGuardar');
+     btn.disabled = true; btn.textContent = '⏳ Guardando...';
+     let resp = null;
++    _ingGuardando = true;    // V27
+     try {
+         const payload = Object.assign({ token: _tokenActual(), idOperacion: pendiente.idOperacion }, pendiente.datos);
+         resp = await _llamarAPI('ingresarMercaderia', payload);
+     } catch(e) { resp = null; }
++    _ingGuardando = false;   // V27: terminó (respuesta, error o falla de red)
+     btn.disabled = false; btn.textContent = '📦 Guardar ingreso';
+ 
+     if (resp && !resp.success && (resp.validacion || resp.definitivo || resp.pruebaVencida)) {
