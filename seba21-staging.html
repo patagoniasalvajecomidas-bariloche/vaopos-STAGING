@@ -1878,7 +1878,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🛒 POS · Copihue v517</title>
+    <title>🛒 POS · Copihue v524</title>
     <meta name="theme-color" content="#991b1b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4407,7 +4407,7 @@ async function _recargaSilenciosa() {
         if (!arr || arr.length === 0) return;
         const map = {};
         arr.forEach(p => { map[p.id] = p; });
-        productos = productos.map(p => { const f=map[p.id]; return f ? {...p,stock:parseInt(f.stock)||0,price:parseInt(f.price)||p.price} : p; });
+        productos = productos.map(p => { const f=map[p.id]; return f ? {...p,stock:_stockLeido(p,f.stock),price:parseInt(f.price)||p.price} : p; });
         const ind = document.getElementById('indicadorCarga');
         if (ind) { ind.classList.remove('cargando'); ind.classList.add('ok'); }
     } catch(e) { console.warn('Recarga silenciosa:', e.message); }
@@ -4431,7 +4431,7 @@ async function cargarProductos(intento = 1) {
                 id: p.id,
                 name: String(p.name).trim(),
                 price: parseInt(p.price) || 0,
-                stock: parseInt(p.stock) || 0,
+                stock: _stockLeido({ name: String(p.name).trim(), category: String(p.category || 'ALMACEN').trim().toUpperCase() }, p.stock),
                 image: `imagenes-productos/${simplificarNombre(String(p.name).trim())}.jpg`,
                 category: String(p.category || 'ALMACEN').trim().toUpperCase(),
                 rotacion: parseInt(p.rotacion) || 3,
@@ -4707,8 +4707,8 @@ function renderResultados(results, term = '') {
         const stockColor = sinStock ? '#bbb' : stockBajo ? '#f57c00' : '#aaa';
         const stockLabel = sinStock
             ? '<span style="background:#e0e0e0;color:#999;padding:1px 6px;border-radius:8px;font-size:0.6rem;font-weight:700;">SIN STOCK</span>'
-            : stockBajo ? `<span style="color:#f57c00;">${p.stock} u. (poco)</span>`
-            : `stock: ${p.stock}`;
+            : stockBajo ? `<span style="color:#f57c00;">${esPorPeso(p) ? _stockKgTexto(p.stock) + ' kg' : p.stock + ' u.'} (poco)</span>`
+            : `stock: ${esPorPeso(p) ? _stockKgTexto(p.stock) + ' kg' : p.stock}`;
 
         return `
         <div class="resultado-item ${sinStock ? 'sin-stock' : ''} ${qty > 0 ? 'en-carrito' : ''}"
@@ -4906,6 +4906,22 @@ function esPorPeso(producto) {
     const cat = (producto.category || '').toUpperCase();
     return /\bKG\b/.test(nombre) || 
            (cat.includes('FRUTA') || cat.includes('VERDURA')) && nombre.includes('KG');
+}
+
+// v524 — stock de productos por kilo con decimales. Antes SIEMPRE se leía con
+// parseInt, así que 1,479 kg se veía como "1 u." y menos de 1 kg como "SIN STOCK".
+// Los productos que NO son por kilo siguen leyéndose exactamente igual (parseInt).
+function _stockLeido(prod, raw) {
+    try {
+        if (esPorPeso(prod)) {
+            const n = parseFloat(String(raw).replace(',', '.'));
+            if (isFinite(n)) return Math.round(n * 1000) / 1000;
+        }
+    } catch(e) {}
+    return parseInt(raw) || 0;
+}
+function _stockKgTexto(n) {
+    return (Math.round(n * 100) / 100).toLocaleString('es-AR', { maximumFractionDigits: 2 });
 }
 
 function _refreshResultadosBadges(idActualizado) {
@@ -5295,7 +5311,47 @@ function _aplicarEstadoFabColapso() {
     toggle.textContent = plegado ? '▸' : '▾';
 }
 
+// v520 — SEÑAL AL VACIAR EL CARRITO: antes el botón parecía no hacer nada hasta que el redibujado terminaba.
+// Ahora, al tocar, el/los botón(es) 🗑 pasan a ⏳ y sale un cartel; recién en el cuadro siguiente corre el MISMO
+// vaciado de siempre (_limpiarVentaAhora, sin cambios). Siempre se restaura el botón, aunque algo falle.
+let _limpiandoVenta = false;
+// v521 — Abre la página de reportes de retiros de caja (copihue-retiros-de-caja.html).
+// Si hay una venta en curso, pregunta antes de salir para no perder el carrito.
+function abrirRetirosDeCaja() {
+    try {
+        if (Array.isArray(ventaActual) && ventaActual.length > 0 &&
+            !confirm('Tenés una venta en curso. Si salís ahora, el carrito se pierde.\n\n¿Salir igual?')) return;
+    } catch (e) {}
+    location.href = 'copihue-retiros-de-caja.html';
+}
+
 function limpiarVenta() {
+    if (ventaActual.length === 0) return;
+    if (_limpiandoVenta) return;            // doble toque mientras trabaja: se ignora
+    _limpiandoVenta = true;
+    const btns = Array.from(document.querySelectorAll('button[onclick*="limpiarVenta"]'));
+    const orig = btns.map(b => ({ b: b, t: b.textContent, o: b.style.opacity, p: b.style.pointerEvents }));
+    btns.forEach(b => { b.textContent = '⏳'; b.style.opacity = '0.6'; b.style.pointerEvents = 'none'; });
+    try { mostrarToast('🗑️ Vaciando carrito…', 'naranja'); } catch (e) {}
+    const t0 = performance.now();
+    const restaurar = () => { orig.forEach(x => { x.b.textContent = x.t; x.b.style.opacity = x.o; x.b.style.pointerEvents = x.p; }); _limpiandoVenta = false; };
+    const trabajar = () => {
+        try {
+            _limpiarVentaAhora();
+            try { mostrarToast('✅ Carrito vaciado'); } catch (e) {}
+        } catch (e) {
+            console.warn('⚠️ limpiarVenta:', e);
+            try { mostrarToast('⚠️ No se pudo vaciar el carrito. Probá de nuevo.', 'rojo'); } catch (e2) {}
+        } finally {
+            restaurar();
+            try { console.info('🗑️ Vaciar carrito: ' + Math.round(performance.now() - t0) + ' ms'); } catch (e) {}
+        }
+    };
+    try { requestAnimationFrame(() => setTimeout(trabajar, 0)); }   // deja pintar la señal antes del trabajo pesado
+    catch (e) { setTimeout(trabajar, 0); }
+}
+
+function _limpiarVentaAhora() {
     if (ventaActual.length === 0) return;
     ventaActual = [];
     guardarCarritoPendiente();
@@ -6349,6 +6405,7 @@ function _confirmarCobroDispatch() {
 async function togglePagoMixto() {
     const panel = document.getElementById('panelPagoMixto');
     const abrir = panel.style.display === 'none';
+    if (!abrir) { _pmLimpiarTodo(); return; } // v523 — "✕ cerrar" descarta lo cargado
     panel.style.display = abrir ? 'block' : 'none';
     document.getElementById('pmToggleFlecha').textContent = abrir ? '⌄' : '›';
     _pagoMixtoActivo = abrir;
@@ -6370,6 +6427,23 @@ const PM_PENDIENTE_KEY = 'copihue_pago_mixto_pendiente'; // v453
 // modal para agregar más productos (ej. dar caramelos en vez de vuelto) e
 // incluso a un refresh de página, igual que ya hace el carrito. Solo se
 // borra con "Vaciar carrito" o al confirmar el cobro con éxito.
+// v523 — limpieza TOTAL del pago mixto en curso (variables + panel + localStorage).
+// Se llama cuando una venta ya quedó cobrada y el carrito vaciado, y al cerrar
+// el panel con "✕ cerrar". Nunca lanza error.
+function _pmLimpiarTodo() {
+    try {
+        _pagosMixtos = [];
+        _pagoMixtoActivo = false;
+        localStorage.removeItem(PM_PENDIENTE_KEY);
+        const panel = document.getElementById('panelPagoMixto');
+        if (panel) panel.style.display = 'none';
+        const fl = document.getElementById('pmToggleFlecha');
+        if (fl) fl.textContent = '›';
+        const er = document.getElementById('pmErrorMsg');
+        if (er) er.style.display = 'none';
+    } catch(e) { console.warn('⚠️ _pmLimpiarTodo:', e); }
+}
+
 function _pmGuardarEstadoPendiente() {
     if (!_pagosMixtos.length) { localStorage.removeItem(PM_PENDIENTE_KEY); return; }
     try {
@@ -6773,12 +6847,7 @@ async function confirmarVentaMixta() {
         };
 
         let stockOk = false, ticketNum = null;
-        const ventaData = itemsSnapshot.map(i => ({
-            id: i.esPeso ? i.idOriginal : i.id, name: i.name, qty: i.qty,
-            esPeso: i.esPeso || false, gramos: i.gramos || 0,
-            precioVenta: i.price, precioModificado: i.precioModificado || false,
-            precioOriginal: i.precioOriginal || 0, precioCosto: i.precioCosto || 0
-        }));
+        const ventaData = _itemsParaServidor(itemsSnapshot);
         const ventaPayload = {
             items: ventaData, metodoPago: metodoPagoTexto, vendedor: vendedorActual, idVenta, detallePagos,
             clienteFiado: pagoFiado ? pagoFiado.cliente : '',
@@ -6824,6 +6893,7 @@ async function confirmarVentaMixta() {
         ventaActual = [];
         renderVenta();
         localStorage.removeItem(CARRITO_KEY);
+        _pmLimpiarTodo(); // v523 — la venta ya quedó guardada: nada de mixto residual aunque falle algo después
 
         try {
         itemsSnapshot.forEach(item => {
@@ -6924,17 +6994,7 @@ async function confirmarVenta() {
     // reconciliar el aviso "stock pendiente" cuando el reintento sí funciona.
     let idVenta = null;
     try {
-        const ventaData = ventaActual.map(i => ({
-            id: i.esPeso ? i.idOriginal : i.id,
-            name: i.name,
-            qty: i.qty,
-            esPeso: i.esPeso || false,
-            gramos: i.gramos || 0,
-            precioVenta: i.price,
-            precioModificado: i.precioModificado || false,
-            precioOriginal: i.precioOriginal || 0,
-            precioCosto: i.precioCosto || 0
-        }));
+        const ventaData = _itemsParaServidor(ventaActual);
         // Agregar método de pago al request
         metodoPagoFinal = metodoPagoActual.toUpperCase();
         idVenta = 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -6956,16 +7016,7 @@ async function confirmarVenta() {
     // Si falló el stock — guardar para reintento automático en segundo plano
     if (!stockOk) {
         const ventaPendiente = {
-            items: ventaActual.map(i => ({
-                id: i.esPeso ? i.idOriginal : i.id,
-                name: i.name,
-                qty: i.qty,
-                esPeso: i.esPeso || false,
-                gramos: i.gramos || 0,
-                precioVenta: i.price,
-                precioModificado: i.precioModificado || false,
-                precioOriginal: i.precioOriginal || 0
-            })),
+            items: _itemsParaServidor(ventaActual),
             metodoPago: metodoPagoFinal || metodoPagoActual,
             vendedor: vendedorActual,
             idVenta,
@@ -6996,6 +7047,7 @@ async function confirmarVenta() {
     ventaActual = [];
     renderVenta();
     localStorage.removeItem(CARRITO_KEY);
+    _pmLimpiarTodo(); // v523 — un cobro normal tampoco debe dejar restos de un mixto anterior
 
     try {
         // Actualizar stock local para no vender más de lo que hay
@@ -7979,6 +8031,12 @@ function _pgpHtmlTarjeta(i, entrada, cls, rel) {
         h += '<div style="font-size:0.82rem;color:#333;margin-top:4px;">Cliente: <b>' + _pgpEsc(d.cliente || '—') + '</b> · Saldo a FIADO: <b>' + _pgpMoneda(Number(d.total)) + '</b></div>';
         h += '<div style="font-size:0.78rem;color:#666;">Ticket guardado en el pendiente: ' + _pgpEsc(d.ticket === null || d.ticket === undefined || d.ticket === '' ? 'ninguno' : d.ticket) + '</div>';
         h += '<div style="font-size:0.72rem;color:#888;font-family:monospace;word-break:break-all;">idFiado: ' + _pgpEsc(cls.idFiado) + '</div>';
+        if (entrada.bloqueado) {
+            h += '<div style="margin-top:8px;padding:8px 10px;background:#ffebee;border:2px solid #c62828;border-radius:8px;font-size:0.8rem;font-weight:800;color:#b71c1c;">⛔ BLOQUEADO: ' + _pgpEsc(entrada.bloqueado) + '. Hay más de una fila con este idFiado en FIADOS. No se reintenta y no se borró nada. Mostrale esta pantalla a Víctor.</div>';
+        } else {
+            h += '<div style="margin-top:8px;"><button data-pgp-guardar-fiado="' + _pgpEsc(cls.idFiado) + '" style="padding:8px 12px;border-radius:8px;border:none;background:#2e7d32;color:white;font-weight:800;cursor:pointer;">💾 Guardar este fiado en FIADOS</button>' +
+                 '<div style="font-size:0.72rem;color:#555;margin-top:4px;">Solo registra el fiado faltante, y solo si la planilla confirma que NO existe. No vuelve a vender, no toca stock, no crea ticket.</div></div>';
+        }
     } else if (cls.tipo === 'DESCONOCIDO') {
         h += '<div style="margin-top:6px;color:#c62828;font-weight:700;">Requiere revisión: la entrada no tiene el formato esperado. No se consulta.</div>';
     } else {
@@ -8188,7 +8246,7 @@ function _pgpDibujar() {
          '<div style="font-weight:900;font-size:1.1rem;color:#222;">Pagos pendientes (' + (s.total === null ? '?' : s.total) + ')</div>' +
          '<button id="pgpCerrar" style="padding:8px 14px;border-radius:8px;border:none;background:#424242;color:white;font-weight:700;cursor:pointer;">Cerrar</button></div>';
     h += '<div style="margin-top:8px;padding:8px 10px;background:#e3f2fd;border-radius:8px;font-size:0.8rem;color:#0d47a1;">' +
-         '<b>Solo consulta.</b> Este panel no reenvía, no cancela ni repara nada; solo ofrece «Quitar de pendientes» cuando la planilla ya confirmó la operación. Los pendientes son del navegador donde se crearon: acá solo ves los de este dispositivo.</div>';
+         '<b>Solo consulta.</b> Este panel no reenvía ventas, no cancela ni repara nada; solo ofrece «Quitar de pendientes» cuando la planilla ya confirmó la operación. Única excepción: «Guardar este fiado en FIADOS» registra el fiado faltante (nunca la venta ni el stock). Los pendientes son del navegador donde se crearon: acá solo ves los de este dispositivo.</div>';
     {
         const nNuevas = s.sinCompletar.filter(x => x.op).length;
         const nRevisar = s.sinCompletar.filter(x => !x.op).length;
@@ -8196,6 +8254,7 @@ function _pgpDibujar() {
              'Desglose: <b>' + (s.nViejos === null ? '?' : s.nViejos) + '</b> pendientes antiguos · <b>' + (s.o.ok ? nNuevas : '?') + '</b> operaciones nuevas sin completar · <b>' + (s.o.ok ? nRevisar : '?') + '</b> registros a revisar.</div>';
     }
     h += _fiadoOrigenHtml();
+    h += _fiadoComprobantesHtml();
     const idsViejos = new Set();
     clasif.forEach(c => { if (c.idVenta) idsViejos.add(c.idVenta); if (c.idFiado) idsViejos.add(c.idFiado); });
     const hayOpsConsultables = s.sinCompletar.some(x => x.op);
@@ -8277,6 +8336,32 @@ function _pgpDibujar() {
             } catch (e) { console.warn('Quitar pendiente:', e); }
             if (document.getElementById('pgpOverlay')) _pgpDibujar();
         };
+    });
+    overlay.querySelectorAll('[data-pgp-guardar-fiado]').forEach(b => {
+        b.onclick = async () => {
+            if (_PGP.ocupado) return;
+            _PGP.ocupado = true;
+            try {
+                b.disabled = true; b.textContent = 'Verificando y guardando…';
+                await _fiadoRecuperar(b.getAttribute('data-pgp-guardar-fiado'));
+            } catch (e) { console.warn('Guardar fiado desde panel:', e); mostrarToast('⚠️ No se pudo completar: el pendiente se conserva.', 'naranja'); }
+            finally {
+                _PGP.ocupado = false;
+                try { _pgpActualizarContador(); } catch (e) {}
+                if (document.getElementById('pgpOverlay')) _pgpDibujar();
+            }
+        };
+    });
+    overlay.querySelectorAll('[data-fcomp-enviar]').forEach(b => {
+        b.onclick = () => {
+            try {
+                const x = _fiadoCompLeer().find(y => y && y.idFiado === b.getAttribute('data-fcomp-enviar'));
+                if (x) _fiadoMostrarComprobante(Object.assign({}, x.df), x.snap, x.ticket);
+            } catch (e) { console.warn('Comprobante fiado:', e); }
+        };
+    });
+    overlay.querySelectorAll('[data-fcomp-quitar]').forEach(b => {
+        b.onclick = () => { _fiadoCompQuitar(b.getAttribute('data-fcomp-quitar')); if (document.getElementById('pgpOverlay')) _pgpDibujar(); };
     });
     overlay.querySelectorAll('[data-pgp-consultar]').forEach(b => {
         b.onclick = async () => {
@@ -8366,16 +8451,25 @@ async function _reenviarVentasPendientes() {
             // v443 — pago mixto: si esta cola trae un FIADO que falló al
             // guardarse (la venta en Ventas ya está OK, solo faltó FIADOS),
             // se reintenta acá con el mismo patrón de idempotencia que ya usa
-            // guardarFiado del lado del servidor (idFiado no cambia entre
-            // reintentos, así que no duplica el registro).
+            // guardarFiado (idFiado no cambia entre
+            // reintentos). OJO v519: el servidor NO deduplica guardarFiado (hace appendRow siempre), por eso el
+            // control de existencia lo hace el navegador con consultarEstadoOperacion antes de guardar.
             if (venta.tipo === 'fiadoPendiente') {
+                // v519 — mismo control que el botón del panel: consulta antes y después, nunca guarda a ciegas,
+                // bloquea si hay DUPLICADO_EN_HOJA y solo quita el pendiente con UNA fila confirmada en FIADOS.
                 try {
-                    const urlF = API_URL + '?action=guardarFiado&data=' + encodeURIComponent(JSON.stringify(venta.datosFiado));
-                    const respF = await _apiFetchUrl('guardarFiado', urlF);
-                    if (respF && respF.ok !== false) {
-                        console.log('✅ Fiado pendiente sincronizado:', venta.datosFiado.idFiado);
-                        mostrarToast('✅ Fiado sincronizado con la planilla', 'verde');
-                        if (venta.datosFiado && venta.datosFiado.idFiado) fiadosSincronizados.add(venta.datosFiado.idFiado);
+                    if (venta.bloqueado) { console.warn('⛔ Fiado bloqueado, no se reintenta:', venta.datosFiado && venta.datosFiado.idFiado); continue; }
+                    const rF = await _fiadoSincronizar(venta.datosFiado, venta.intentoTs);
+                    const idF = venta.datosFiado && venta.datosFiado.idFiado;
+                    if (rF.intentoTs && idF) _fiadoPendActualizar(idF, { intentoTs: rF.intentoTs });
+                    if (_fiadoEsConfirmado(rF)) {
+                        console.log('✅ Fiado pendiente confirmado en FIADOS:', idF);
+                        mostrarToast('✅ Fiado confirmado en la planilla', 'verde');
+                        if (idF) fiadosSincronizados.add(idF);
+                        if (venta.comprobante) { let tk = rF.ticket || ''; if (!tk) tk = await _fiadoTicketDeVenta(idF, venta.comprobante); _fiadoCompGuardar(venta.datosFiado, venta.comprobante, tk); }
+                    } else if (rF.resultado === 'DUPLICADO' && idF) {
+                        _fiadoPendActualizar(idF, { bloqueado: 'DUPLICADO_EN_HOJA' });
+                        mostrarToast('⛔ DUPLICADO en FIADOS: se bloqueó el reintento y no se borró nada. Avisá a Víctor.', 'rojo');
                     }
                 } catch (eF) { /* sigue pendiente */ }
                 continue;
@@ -16012,8 +16106,8 @@ async function confirmarFiado() {
     try {
         document.getElementById('modalFiado').style.display = 'none';
         _guardarClienteFiado(cliente, telefono);
-        await _procesarVentaFiado(datosFiado, itemsSnapshot);
-        setTimeout(() => _enviarFiadoWhatsApp(datosFiado, Math.round(total)), 300);
+        const _rf = await _procesarVentaFiado(datosFiado, itemsSnapshot);
+        setTimeout(() => _enviarFiadoWhatsApp(datosFiado, Math.round(total), _rf), 300);
         cerrarConfirm();
     } catch(e) {
         mostrarToast('❌ Error al registrar: ' + e.message, 'rojo');
@@ -16072,9 +16166,9 @@ async function _confirmarFiadoSinTel() {
     try {
         document.getElementById('modalFiado').style.display = 'none';
         _guardarClienteFiado(cliente, ''); // guarda en Clientes sin teléfono
-        await _procesarVentaFiado(datosFiado, itemsSnapshot);
+        const _rf = await _procesarVentaFiado(datosFiado, itemsSnapshot);
         // Sin teléfono → abrir modal WA igual para que el vendedor copie el texto
-        setTimeout(() => _enviarFiadoWhatsApp(datosFiado, Math.round(total)), 300);
+        setTimeout(() => _enviarFiadoWhatsApp(datosFiado, Math.round(total), _rf), 300);
         cerrarConfirm();
     } catch(e) {
         mostrarToast('❌ Error al registrar: ' + e.message, 'rojo');
@@ -16082,6 +16176,64 @@ async function _confirmarFiadoSinTel() {
         clearTimeout(_fiadoGuardTimeout);
         window._fiadoEnProceso = false;
     }
+}
+
+// v518 — MULTICOMPRA GRUPAL EN VENTAS: lo que se cobra (y sale en el comprobante) ya descuenta el
+// ahorro grupal (_totalCarritoConDescuentosGrupales), pero los ítems que se mandaban a `vender`
+// llevaban el precio normal, así que la hoja Ventas registraba $X de más (ej. ticket 3338: $28.200 vs
+// $27.200 cobrados). Acá se reparte el ahorro del grupo ENTRE SUS UNIDADES (el servidor hace parseInt del
+// precio: tiene que ser entero) y se manda como precio especial (precioModificado + precioOriginal →
+// el servidor escribe «[PRECIO ESP: $5000→$4500]»). Suma exacta: Σ(items) = total con descuento.
+// Seguridad: si algo del grupo no es el caso simple (producto por peso, precio ya modificado, precio
+// distinto al de lista, cantidades/precios no enteros, o la suma no cierra) NO se toca ese grupo y
+// queda igual que antes. Solo lee; no cambia el carrito ni lo que se muestra o cobra.
+function _itemsParaServidor(lista) {
+    const fila = (i, qty, precioVenta, modif, orig) => ({
+        id: i.esPeso ? i.idOriginal : i.id, name: i.name, qty: qty,
+        esPeso: i.esPeso || false, gramos: i.gramos || 0,
+        precioVenta: precioVenta, precioModificado: modif, precioOriginal: orig,
+        precioCosto: i.precioCosto || 0
+    });
+    const normal = i => fila(i, i.qty, i.price, i.precioModificado || false, i.precioOriginal || 0);
+    const reemplazos = new Map();
+    try {
+        _resumenGruposMulticompra(lista).forEach(g => {
+            const lineas = lista.filter(i => { const mc = _poolMulticompra.get(i.id); return mc && mc.grupo === g.grupo; });
+            if (!lineas.length) return;
+            const ok = lineas.every(i => {
+                const prod = (typeof productos !== 'undefined') ? productos.find(p => p.id === i.id) : null;
+                return !i.esPeso && !i.precioModificado && Number.isInteger(i.qty) && i.qty > 0 &&
+                       Number.isInteger(i.price) && i.price > 0 && prod && prod.price === i.price;
+            });
+            if (!ok) return;
+            const N = lineas.reduce((s, i) => s + i.qty, 0);
+            const A = g.ahorro;
+            if (!(A > 0 && N > 0)) return;
+            const baseRed = Math.floor(A / N);
+            let resto = A - baseRed * N;
+            const tmp = new Map();
+            let sumaNueva = 0, sumaVieja = 0, valido = true;
+            lineas.forEach(i => {
+                const conMas = Math.min(resto, i.qty); resto -= conMas;
+                const sinMas = i.qty - conMas;
+                const rows = [];
+                if (sinMas > 0) rows.push({ qty: sinMas, red: baseRed });
+                if (conMas > 0) rows.push({ qty: conMas, red: baseRed + 1 });
+                rows.forEach(r => { if (i.price - r.red <= 0) valido = false; sumaNueva += (i.price - r.red) * r.qty; });
+                sumaVieja += i.price * i.qty;
+                tmp.set(i, rows);
+            });
+            if (!valido || resto !== 0 || sumaNueva !== sumaVieja - A) return;
+            tmp.forEach((rows, i) => reemplazos.set(i, rows));
+        });
+    } catch (e) { console.warn('⚠️ _itemsParaServidor: se usa el precio normal', e); return lista.map(normal); }
+    const out = [];
+    lista.forEach(i => {
+        const rows = reemplazos.get(i);
+        if (!rows) { out.push(normal(i)); return; }
+        rows.forEach(r => out.push(r.red > 0 ? fila(i, r.qty, i.price - r.red, true, i.price) : fila(i, r.qty, i.price, false, 0)));
+    });
+    return out;
 }
 
 // v517 — RASTRO DEL TICKET DEL FIADO: solo informativo, local a este navegador (no va a la planilla ni cambia ninguna decisión).
@@ -16103,6 +16255,245 @@ function _fiadoOrigenHtml() {
             '<b>Últimos fiados (de dónde salió el ticket del comprobante):</b>' +
             arr.map(x => '<div>' + esc(new Date(x.ts).toLocaleString('es-AR')) + ' · ' + esc(x.cliente || x.idFiado) + ' · ticket <b>' + esc(x.ticket || '—') + '</b> · ' + esc(x.origen) + '</div>').join('') + '</div>';
     } catch (e) { return ''; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// v519 — ETAPA 1 FIADOS: el fiado se CONFIRMA contra la planilla, no se pierde si falla y NO se duplica.
+// Reglas (acordadas con Víctor, 17/10/2026):
+//  • Antes de guardar y después de guardar se consulta FIADOS (consultarEstadoOperacion, solo lectura).
+//  • guardarFiado se llama SOLO si la planilla dice NO_EXISTE. Nunca a ciegas. Si la consulta falla: no se guarda.
+//  • Un fiado no confirmado se encola (fiadoPendiente) y NO sale comprobante «definitivo».
+//  • El pendiente se quita SOLO cuando el idFiado existe exactamente UNA vez en FIADOS.
+//  • DUPLICADO_EN_HOJA: se bloquea el pendiente y se avisa. No se borra ninguna fila.
+//  • Recuperar un fiado NUNCA vende, ni toca stock, ni crea ticket: solo guardarFiado (y, si falta, escribir el
+//    ticket ya conocido en la columna C, que el servidor solo completa si estaba vacía).
+// Protección total contra dos pedidos simultáneos = etapa 2 (backend). Esto reduce el riesgo, no lo elimina.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+const _FIADO_ESPERA_REINTENTO_MS = 45000;      // tras un guardado de resultado incierto, no se vuelve a guardar antes de esto
+const _FIADO_COMPROBANTES_KEY = 'fiado_comprobantes_v1';
+const _FIADO_DEUDA_TOPE_MS = 8000;             // si la deuda acumulada tarda más, el comprobante sale sin ella
+const _fiadoGuardando = new Set();             // cerrojo en memoria por idFiado (misma pestaña)
+
+const _fiadoFmt = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-AR');
+function _fiadoNorm(x) { return String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
+function _fiadoMismoTel(a, b) {
+    const x = String(a || '').replace(/\D/g, ''), y = String(b || '').replace(/\D/g, '');
+    if (x.length < 6 || y.length < 6) return false;
+    if (x.length >= 10 && y.length >= 10) return x.slice(-10) === y.slice(-10);
+    return x === y;
+}
+
+// Foto de lo cobrado (mismas filas que se mandan a Ventas) para poder armar el comprobante más tarde.
+function _fiadoSnapshot(itemsSnapshot, total) {
+    const n = new Date();
+    let rows = [];
+    try {
+        rows = _itemsParaServidor(itemsSnapshot).map(r => ({
+            name: String(r.name || ''), qty: Number(r.qty) || 0, esPeso: !!r.esPeso, gramos: Number(r.gramos) || 0,
+            precioVenta: Number(r.precioVenta) || 0
+        }));
+    } catch (e) { console.warn('⚠️ _fiadoSnapshot:', e); }
+    return { v: 1, fecha: n.toLocaleDateString('es-AR'), hora: n.toTimeString().slice(0, 5), items: rows, total: Math.round(total) };
+}
+
+// Estado del idFiado en la hoja FIADOS. SOLO LECTURA. ok:false = no se pudo verificar (nunca se concluye nada).
+async function _fiadoEstadoServidor(idFiado) {
+    try {
+        const url = API_URL + '?action=consultarEstadoOperacion&data=' + encodeURIComponent(JSON.stringify({ idFiado: idFiado })) + '&t=' + Date.now();
+        const r = await _apiFetchUrl('consultarEstadoOperacion', url);
+        const val = _pgpValidarRespuesta(r, '', idFiado);
+        if (!val.ok) return { ok: false, motivo: val.motivo };
+        return { ok: true, estado: r.fiado.estado, ticket: r.fiado.ticket, filas: r.fiado.filas, reciente: !!r.fiado.reciente };
+    } catch (e) { return { ok: false, motivo: String(e && e.message || e) }; }
+}
+
+// Ticket de la VENTA ligada a este fiado (idVenta = idFiado + '_v'). Solo para MOSTRAR; best-effort.
+// Se acepta únicamente si la planilla confirma esa venta con filas/unidades/total iguales a lo cobrado.
+async function _fiadoTicketDeVenta(idFiado, snap) {
+    try {
+        const idVenta = idFiado + '_v';
+        const url = API_URL + '?action=consultarEstadoOperacion&data=' + encodeURIComponent(JSON.stringify({ idVenta: idVenta })) + '&t=' + Date.now();
+        const r = await _apiFetchUrl('consultarEstadoOperacion', url);
+        const val = _pgpValidarRespuesta(r, idVenta, '');
+        if (!val.ok || r.venta.estado !== 'REGISTRADA' || !snap || !Array.isArray(snap.items) || !snap.items.length) return '';
+        const ev = _pgpEvaluarVenta(_pgpCalcLocal(snap.items), r.venta);
+        return ev.nivel === 'ok' ? String(r.venta.ticket) : '';
+    } catch (e) { return ''; }
+}
+
+// Ya existe EXACTAMENTE una fila en FIADOS: deja el ticket vinculado si se puede, sin pisar nada.
+async function _fiadoCerrarConfirmado(df, est, resultado) {
+    let ticket = _pgpHayTicket(est.ticket) ? String(est.ticket).trim() : '';
+    if (!ticket && _pgpHayTicket(df.ticket)) {
+        try {
+            const url = API_URL + '?action=actualizarTicketFiado&data=' + encodeURIComponent(JSON.stringify({ idFiado: df.idFiado, ticket: String(df.ticket) }));
+            const r = await _apiFetchUrl('actualizarTicketFiado', url);
+            if (r && r.success === true) ticket = String(df.ticket);
+        } catch (e) { /* queda sin ticket vinculado; se informa */ }
+    }
+    return { resultado: resultado, ticket: ticket, sinTicket: !ticket };
+}
+
+// Núcleo: consulta → (solo si NO_EXISTE) guarda → consulta de nuevo. Nunca guarda a ciegas.
+// resultado: GUARDADO | YA_EXISTIA | DUPLICADO | NO_VERIFICABLE | SIN_CONFIRMAR | ESPERAR | EN_CURSO
+async function _fiadoSincronizar(df, intentoTsPrevio) {
+    const id = df && df.idFiado;
+    if (!id) return { resultado: 'NO_VERIFICABLE', motivo: 'falta idFiado' };
+    if (_fiadoGuardando.has(id)) return { resultado: 'EN_CURSO' };
+    _fiadoGuardando.add(id);
+    try {
+        const pre = await _fiadoEstadoServidor(id);
+        if (!pre.ok) return { resultado: 'NO_VERIFICABLE', motivo: pre.motivo };
+        if (pre.estado === 'DUPLICADO_EN_HOJA') return { resultado: 'DUPLICADO', filas: pre.filas };
+        if (pre.estado === 'EXISTE_CON_TICKET' || pre.estado === 'EXISTE_SIN_TICKET') return await _fiadoCerrarConfirmado(df, pre, 'YA_EXISTIA');
+        if (pre.estado !== 'NO_EXISTE') return { resultado: 'NO_VERIFICABLE', motivo: 'estado ' + pre.estado };
+        if (pre.reciente) return { resultado: 'ESPERAR', motivo: 'operación reciente: puede estar en curso' };
+        if (intentoTsPrevio && Date.now() - Number(intentoTsPrevio) < _FIADO_ESPERA_REINTENTO_MS) return { resultado: 'ESPERAR', motivo: 'hubo un guardado hace menos de 45 s' };
+        // La planilla confirma que NO existe: recién ahora se guarda (una sola vez).
+        const intentoTs = Date.now();
+        let errG = null;
+        try {
+            const url = API_URL + '?action=guardarFiado&data=' + encodeURIComponent(JSON.stringify(df));
+            await _apiFetchUrl('guardarFiado', url);
+        } catch (e) { errG = e; }
+        const post = await _fiadoEstadoServidor(id);
+        if (!post.ok) return { resultado: 'SIN_CONFIRMAR', intentoTs: intentoTs, motivo: 'no se pudo verificar después de guardar: ' + post.motivo };
+        if (post.estado === 'DUPLICADO_EN_HOJA') return { resultado: 'DUPLICADO', intentoTs: intentoTs, filas: post.filas };
+        if (post.estado === 'EXISTE_CON_TICKET' || post.estado === 'EXISTE_SIN_TICKET') {
+            const c = await _fiadoCerrarConfirmado(df, post, 'GUARDADO'); c.intentoTs = intentoTs; return c;
+        }
+        return { resultado: 'SIN_CONFIRMAR', intentoTs: intentoTs, motivo: errG ? 'el guardado no respondió' : 'la planilla no registró la fila' };
+    } finally { _fiadoGuardando.delete(id); }
+}
+const _fiadoEsConfirmado = r => !!r && (r.resultado === 'GUARDADO' || r.resultado === 'YA_EXISTIA');
+
+// ── Cola persistente (la misma ventas_pendientes del navegador) ──
+function _fiadoPendLeer() { try { return JSON.parse(localStorage.getItem('ventas_pendientes') || '[]'); } catch (e) { return []; } }
+function _fiadoPendEncolar(df, snap, extra) {
+    try {
+        const arr = _fiadoPendLeer();
+        const i = arr.findIndex(x => x && x.tipo === 'fiadoPendiente' && x.datosFiado && x.datosFiado.idFiado === df.idFiado);
+        if (i >= 0) { Object.assign(arr[i], extra || {}); }
+        else arr.push(Object.assign({ tipo: 'fiadoPendiente', datosFiado: df, comprobante: snap || null, ts: Date.now() }, extra || {}));
+        localStorage.setItem('ventas_pendientes', JSON.stringify(arr));
+        try { _actualizarBadgePendientes(); } catch (e) {}
+        return true;
+    } catch (e) { console.warn('⚠️ No se pudo encolar fiadoPendiente:', e); return false; }
+}
+function _fiadoPendActualizar(idFiado, cambios) {
+    try {
+        const arr = _fiadoPendLeer();
+        const x = arr.find(y => y && y.tipo === 'fiadoPendiente' && y.datosFiado && y.datosFiado.idFiado === idFiado);
+        if (!x) return;
+        Object.assign(x, cambios || {});
+        localStorage.setItem('ventas_pendientes', JSON.stringify(arr));
+    } catch (e) {}
+}
+function _fiadoPendQuitar(idFiado) {   // SOLO se llama con el fiado confirmado en la planilla (una fila)
+    try {
+        const arr = _fiadoPendLeer();
+        const resto = arr.filter(y => !(y && y.tipo === 'fiadoPendiente' && y.datosFiado && y.datosFiado.idFiado === idFiado));
+        if (resto.length !== arr.length) localStorage.setItem('ventas_pendientes', JSON.stringify(resto));
+        try { _actualizarBadgePendientes(); } catch (e) {}
+    } catch (e) {}
+}
+
+// ── Comprobantes de fiados RECUPERADOS, listos para enviar (no cuentan como pendientes) ──
+function _fiadoCompLeer() { try { return JSON.parse(localStorage.getItem(_FIADO_COMPROBANTES_KEY) || '[]'); } catch (e) { return []; } }
+function _fiadoCompGuardar(df, snap, ticket) {
+    try {
+        if (!snap) return;
+        const arr = _fiadoCompLeer().filter(x => x && x.idFiado !== df.idFiado);
+        arr.push({ idFiado: df.idFiado, df: { idFiado: df.idFiado, cliente: df.cliente, telefono: df.telefono || '', total: df.total, ticket: ticket || '' }, snap: snap, ticket: ticket || '', ts: Date.now() });
+        localStorage.setItem(_FIADO_COMPROBANTES_KEY, JSON.stringify(arr.slice(-20)));
+    } catch (e) {}
+}
+function _fiadoCompQuitar(idFiado) {
+    try { localStorage.setItem(_FIADO_COMPROBANTES_KEY, JSON.stringify(_fiadoCompLeer().filter(x => x && x.idFiado !== idFiado))); } catch (e) {}
+}
+function _fiadoComprobantesHtml() {
+    try {
+        const arr = _fiadoCompLeer();
+        if (!arr.length) return '';
+        const esc = x => String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        return '<div style="margin-top:10px;padding:10px;background:#e8f5e9;border:1px solid #2e7d32;border-radius:10px;">' +
+            '<div style="font-weight:800;color:#1b5e20;">📲 Fiados confirmados: comprobante listo para enviar</div>' +
+            '<div style="font-size:0.74rem;color:#444;margin-top:2px;">Estos fiados ya están registrados una sola vez en FIADOS. No cuentan como pendientes.</div>' +
+            arr.map(x => '<div style="margin-top:8px;padding:8px;background:white;border-radius:8px;">' +
+                '<div style="font-size:0.82rem;"><b>' + esc(x.df.cliente || '—') + '</b> · ' + _fiadoFmt(x.snap && x.snap.total) + ' · ticket ' + esc(x.ticket || '—') + '</div>' +
+                '<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">' +
+                '<button data-fcomp-enviar="' + esc(x.idFiado) + '" style="padding:8px 12px;border-radius:8px;border:none;background:#25D366;color:white;font-weight:800;cursor:pointer;">📲 Ver y enviar comprobante</button>' +
+                '<button data-fcomp-quitar="' + esc(x.idFiado) + '" style="padding:8px 12px;border-radius:8px;border:1px solid #757575;background:white;color:#424242;font-weight:700;cursor:pointer;">✔ Ya lo envié (quitar de esta lista)</button>' +
+                '</div></div>').join('') + '</div>';
+    } catch (e) { return ''; }
+}
+
+// ── Deuda acumulada: SOLO si es verificable y sin ambigüedad de identidad ──
+// Usa listarFiados (lectura de FIADOS con saldos reales ya descontados los abonos; los PAGADOS se excluyen).
+// ok:false → el comprobante sale solo con la compra, sin saldo acumulado.
+async function _fiadoDeudaAcumulada(df, totalCompra) {
+    try {
+        if (!df || String(df.telefono || '').replace(/\D/g, '').length < 6) return { ok: false, motivo: 'sin teléfono' };
+        const r = await _apiFetch('listarFiados');
+        if (!r || r.ok !== true || !Array.isArray(r.fiados)) return { ok: false, motivo: 'respuesta inválida de la planilla' };
+        const filas = r.fiados.filter(f => f && _fiadoMismoTel(f.telefono, df.telefono) && String(f.estado || '').toUpperCase() !== 'PAGADO');
+        const esta = filas.filter(f => String(f.idFiado) === String(df.idFiado));
+        if (esta.length !== 1) return { ok: false, motivo: 'esta compra no figura exactamente una vez en FIADOS' };
+        if (!(Math.abs(parseFloat(esta[0].total) - totalCompra) < 1)) return { ok: false, motivo: 'el saldo de esta compra en FIADOS no coincide con lo cobrado' };
+        const nom = _fiadoNorm(df.cliente);
+        const otros = filas.filter(f => String(f.idFiado) !== String(df.idFiado));
+        const otroNombre = otros.filter(f => _fiadoNorm(f.cliente) !== nom);
+        if (otroNombre.length) return { ok: false, ambiguo: true, nombres: Array.from(new Set(otroNombre.map(f => String(f.cliente || '?')))), motivo: 'hay fiados con este teléfono a nombre de otra persona' };
+        const previas = otros;
+        if (previas.some(f => !isFinite(parseFloat(f.total)))) return { ok: false, motivo: 'saldo ilegible en FIADOS' };
+        const previa = previas.reduce((a, f) => a + parseFloat(f.total), 0);
+        return { ok: true, previa: previa, total: previa + totalCompra, tickets: previas.map(f => (f.ticket && String(f.ticket).trim()) ? '#' + String(f.ticket).trim() : String(f.idFiado)) };
+    } catch (e) { return { ok: false, motivo: String(e && e.message || e) }; }
+}
+
+function _fiadoLineasProductos(snap) {
+    const out = []; let suma = 0;
+    (snap.items || []).forEach(i => {
+        if (i.esPeso) { out.push('• ' + i.name + '  ' + _fiadoFmt(i.precioVenta)); suma += i.precioVenta; }
+        else { const sub = i.precioVenta * i.qty; out.push('• ' + i.qty + '× ' + i.name + '  ' + _fiadoFmt(sub) + (i.qty > 1 ? '  (' + _fiadoFmt(i.precioVenta) + ' c/u)' : '')); suma += sub; }
+    });
+    const dif = Math.round(snap.total - suma);
+    if (out.length && dif !== 0) out.push('• Ajuste / redondeo  ' + (dif < 0 ? '-' : '') + _fiadoFmt(Math.abs(dif)));
+    return out;
+}
+
+// Abre el comprobante de un fiado YA CONFIRMADO (recuperado). No consulta ni escribe nada de la venta.
+function _fiadoMostrarComprobante(df, snap, ticket) {
+    _enviarFiadoWhatsApp(df, snap ? snap.total : Number(df.total), { fiadoConfirmado: true, snap: snap, ticket: ticket || df.ticket || '', fecha: snap && snap.fecha, hora: snap && snap.hora });
+}
+
+// Recuperación manual (botón del panel Pagos pendientes) y también usada por el reintento de la cola.
+// Registra ÚNICAMENTE el fiado faltante: no llama a vender, no toca stock, no crea ticket.
+async function _fiadoRecuperar(idFiado) {
+    const e = _fiadoPendLeer().find(x => x && x.tipo === 'fiadoPendiente' && x.datosFiado && x.datosFiado.idFiado === idFiado);
+    if (!e) { mostrarToast('❌ Ese fiado ya no está en pendientes', 'rojo'); return null; }
+    if (e.bloqueado) { mostrarToast('⛔ Fiado bloqueado: hay más de una fila con este idFiado. Mostrale esta pantalla a Víctor.', 'rojo'); return null; }
+    const r = await _fiadoSincronizar(e.datosFiado, e.intentoTs);
+    if (r.intentoTs) _fiadoPendActualizar(idFiado, { intentoTs: r.intentoTs });
+    if (_fiadoEsConfirmado(r)) {
+        let ticket = r.ticket || '';
+        if (!ticket && e.comprobante) ticket = await _fiadoTicketDeVenta(idFiado, e.comprobante);   // solo para mostrar
+        _fiadoPendQuitar(idFiado);                  // existe exactamente UNA vez → recién ahora se quita
+        if (e.comprobante) _fiadoCompGuardar(e.datosFiado, e.comprobante, ticket);
+        mostrarToast(r.sinTicket ? '✅ Fiado confirmado en FIADOS (una sola fila). Quedó SIN ticket vinculado: se completa al confirmarse la venta.' : '✅ Fiado confirmado en FIADOS (una sola fila).', r.sinTicket ? 'naranja' : 'verde');
+        if (e.comprobante) _fiadoMostrarComprobante(e.datosFiado, e.comprobante, ticket);
+    } else if (r.resultado === 'DUPLICADO') {
+        _fiadoPendActualizar(idFiado, { bloqueado: 'DUPLICADO_EN_HOJA' });
+        mostrarToast('⛔ DUPLICADO en FIADOS: hay más de una fila con este idFiado. Se bloqueó el reintento y NO se borró nada. Avisá a Víctor.', 'rojo');
+    } else if (r.resultado === 'ESPERAR' || r.resultado === 'EN_CURSO') {
+        mostrarToast('⏳ Hace muy poco se intentó guardar. Esperá un minuto y volvé a tocar el botón (se verifica antes de guardar).', 'naranja');
+    } else if (r.resultado === 'NO_VERIFICABLE') {
+        mostrarToast('⚠️ No se pudo verificar la planilla (' + (r.motivo || 'sin conexión') + '). No se guardó nada; el pendiente se conserva.', 'naranja');
+    } else {
+        mostrarToast('⚠️ El fiado sigue SIN confirmar (' + (r.motivo || 'sin respuesta') + '). Se conserva el pendiente; se verifica antes de cualquier nuevo guardado.', 'naranja');
+    }
+    try { _actualizarBadgePendientes(); } catch (e2) {}
+    return r;
 }
 
 async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
@@ -16127,13 +16518,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     const idVentaFiado = datosFiado.idFiado + '_v';
 
     try {
-        const ventaData = itemsSnapshot.map(i => ({
-            id: i.esPeso ? i.idOriginal : i.id,
-            name: i.name, qty: i.qty,
-            esPeso: i.esPeso || false, gramos: i.gramos || 0,
-            precioVenta: i.price, precioModificado: i.precioModificado || false,
-            precioOriginal: i.precioOriginal || 0, precioCosto: i.precioCosto || 0
-        }));
+        const ventaData = _itemsParaServidor(itemsSnapshot);
         const ventaPayload = {
             items: ventaData, metodoPago: 'FIADO', vendedor: vendedorActual,
             clienteFiado: datosFiado.cliente || '',
@@ -16149,13 +16534,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
         console.warn('⚠️ Error venta fiado (se reintentará):', e);
         // Encolar reintento con mismo idVenta para no duplicar
         try {
-            const ventaDataRetry = itemsSnapshot.map(i => ({
-                id: i.esPeso ? i.idOriginal : i.id,
-                name: i.name, qty: i.qty,
-                esPeso: i.esPeso || false, gramos: i.gramos || 0,
-                precioVenta: i.price, precioModificado: i.precioModificado || false,
-                precioOriginal: i.precioOriginal || 0
-            }));
+            const ventaDataRetry = _itemsParaServidor(itemsSnapshot);
             const pendientes = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
             pendientes.push({
                 items: ventaDataRetry, metodoPago: 'FIADO', vendedor: vendedorActual,
@@ -16177,13 +16556,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     // (sigue desactivado desde el 19/09/2026).
     if (!stockOk && !_fiadoEncolado) {
         try {
-            const ventaDataQ = itemsSnapshot.map(i => ({
-                id: i.esPeso ? i.idOriginal : i.id,
-                name: i.name, qty: i.qty,
-                esPeso: i.esPeso || false, gramos: i.gramos || 0,
-                precioVenta: i.price, precioModificado: i.precioModificado || false,
-                precioOriginal: i.precioOriginal || 0
-            }));
+            const ventaDataQ = _itemsParaServidor(itemsSnapshot);
             const pendientesQ = JSON.parse(localStorage.getItem('ventas_pendientes') || '[]');
             if (!pendientesQ.some(x => x && x.idVenta === idVentaFiado)) {
                 pendientesQ.push({
@@ -16210,7 +16583,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
             const _btnT = document.getElementById('btnOkConfirm');
             if (_btnT) _btnT.textContent = '⏳ Buscando ticket...';
             const _espera = (typeof window._FIADO_ESPERA_TICKET_MS === 'number') ? window._FIADO_ESPERA_TICKET_MS : 4000;
-            const _locT = _pgpCalcLocal(itemsSnapshot.map(i => ({ qty: i.qty, esPeso: i.esPeso || false, precioVenta: i.price })));
+            const _locT = _pgpCalcLocal(_itemsParaServidor(itemsSnapshot));
             const _t0 = Date.now();
             for (let _n = 0; _n < 3 && !ticketNum; _n++) {
                 await new Promise(r => setTimeout(r, _espera));
@@ -16232,11 +16605,19 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     datosFiado.ticket = ticketNum;
     _fiadoOrigenAnotar(datosFiado.idFiado, datosFiado.cliente, ticketNum, _ticketOrigen);
 
-    // 2. Guardar en hoja FIADOS (con o sin ticket — si no hay ticket se actualiza después)
-    try {
-        const url2 = API_URL + '?action=guardarFiado&data=' + encodeURIComponent(JSON.stringify(datosFiado));
-        await _apiFetchUrl('guardarFiado', url2);
-    } catch(e) { console.warn('⚠️ Error guardar fiado:', e); }
+    // 2. v519 — FIADOS: consulta → guarda solo si NO existe → consulta de nuevo. Si no se confirma, se ENCOLA
+    //    (fiadoPendiente) con la foto del comprobante; nunca se pierde y nunca se guarda a ciegas.
+    const _snapComp = _fiadoSnapshot(itemsSnapshot, total);
+    const _sync = await _fiadoSincronizar(datosFiado, null);
+    const _fiadoConfirmado = _fiadoEsConfirmado(_sync);
+    if (!_fiadoConfirmado) {
+        _fiadoPendEncolar(datosFiado, _snapComp, Object.assign({ idVenta: idVentaFiado },
+            _sync.intentoTs ? { intentoTs: _sync.intentoTs } : {},
+            _sync.resultado === 'DUPLICADO' ? { bloqueado: 'DUPLICADO_EN_HOJA' } : {}));
+        console.warn('⚠️ Fiado NO confirmado (' + _sync.resultado + '): queda en pendientes', _sync.motivo || '');
+    } else if (_sync.sinTicket) {
+        console.warn('⚠️ Fiado confirmado SIN ticket vinculado:', datosFiado.idFiado);
+    }
 
     // 3. Guardar historial local (usando snapshot)
     guardarVentaDia({ items: itemsSnapshot, total, hora, stockRebajado: stockOk, metodoPago: 'FIADO', idVenta: idVentaFiado });
@@ -16250,7 +16631,11 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     });
 
     // 5. Toast, cierre de modales y limpieza
-    if (stockOk) {
+    if (!_fiadoConfirmado) {
+        mostrarToast(_sync.resultado === 'DUPLICADO'
+            ? `⛔ DUPLICADO en FIADOS (${datosFiado.cliente}). NO se borró nada. Avisá a Víctor.`
+            : `⚠️ Fiado de ${datosFiado.cliente} SIN CONFIRMAR — $${Math.round(total).toLocaleString('es-AR')}. Quedó en «Pagos pendientes»: no se envía comprobante todavía.`, 'rojo');
+    } else if (stockOk) {
         mostrarToast(`✅ Fiado de ${datosFiado.cliente} registrado — $${Math.round(total).toLocaleString('es-AR')}`, 'naranja');
     } else {
         mostrarToast(`⚠️ Fiado de ${datosFiado.cliente} guardado — $${Math.round(total).toLocaleString('es-AR')}. La VENTA quedó por confirmar (ver «Pagos pendientes»)`, 'naranja');
@@ -16265,6 +16650,7 @@ async function _procesarVentaFiado(datosFiado, itemsSnapshot) {
     // Restaurar botón Cobrar
     const btnOk = document.getElementById('btnOkConfirm');
     if (btnOk) { btnOk.textContent = '✅ Confirmar cobro'; btnOk.disabled = false; btnOk.onclick = confirmarVenta; }
+    return { fiadoConfirmado: _fiadoConfirmado, resultado: _sync.resultado, snap: _snapComp, ticket: ticketNum ? String(ticketNum) : '' };
 }
 
 // ── WhatsApp Business forzado — alias de abrirWABusiness ────────────────────
@@ -16296,8 +16682,55 @@ function _guardarClienteFiado(nombre, telefono) {
     } catch(e) { /* ignorar — el fiado ya se registró */ }
 }
 
-function _enviarFiadoWhatsApp(datosFiado, total) {
+async function _enviarFiadoWhatsApp(datosFiado, total, ctx) {
     const tel = (datosFiado.telefono || '').replace(/\D/g, '');
+
+    // v519 — con contexto (venta nueva o fiado recuperado): comprobante con productos, y deuda acumulada solo si es verificable.
+    if (ctx && typeof ctx === 'object') {
+        if (ctx.fiadoConfirmado !== true) {
+            // El fiado NO está confirmado en FIADOS: no sale comprobante definitivo (ya se avisó en pantalla).
+            console.warn('⚠️ Comprobante NO enviado: fiado sin confirmar', datosFiado.idFiado);
+            return;
+        }
+        const now = new Date();
+        const fecha = ctx.fecha || now.toLocaleDateString('es-AR');
+        const hora = ctx.hora || now.toTimeString().slice(0, 5);
+        const ticketN = ctx.ticket || datosFiado.ticket || '';
+        const snap = ctx.snap && Array.isArray(ctx.snap.items) && ctx.snap.items.length ? ctx.snap : null;
+        const totalCompra = Math.round(total);
+        let deuda = { ok: false, motivo: 'no consultada' };
+        try {
+            mostrarToast('⏳ Armando comprobante…', 'naranja');
+            deuda = await Promise.race([
+                _fiadoDeudaAcumulada(datosFiado, totalCompra),
+                new Promise(res => setTimeout(() => res({ ok: false, motivo: 'la planilla tardó más de ' + (_FIADO_DEUDA_TOPE_MS / 1000) + ' s' }), _FIADO_DEUDA_TOPE_MS))
+            ]);
+        } catch (e) { deuda = { ok: false, motivo: String(e && e.message || e) }; }
+        const lineas = [
+            `🧾 *COMPROBANTE DE FIADO — Almacén Copihue*`,
+            ``,
+            `📅 Fecha: ${fecha}  🕐 ${hora}`,
+            `👤 Cliente: ${datosFiado.cliente}`,
+            `🎫 Ticket: ${ticketN ? '#' + ticketN : '—'}`
+        ];
+        if (snap) { lineas.push('', '🛒 *Detalle de la compra:*'); _fiadoLineasProductos(snap).forEach(l => lineas.push(l)); }
+        lineas.push('', `💰 *Total de esta compra: ${_fiadoFmt(totalCompra)}*`);
+        if (deuda.ok && deuda.previa > 0) {
+            lineas.push('', `📌 *ESTADO ACTUAL DE TU DEUDA*`,
+                `Deuda anterior: ${_fiadoFmt(deuda.previa)}`,
+                `Esta compra: ${_fiadoFmt(totalCompra)}`,
+                `💰 *TOTAL PENDIENTE: ${_fiadoFmt(deuda.total)}*`,
+                `(Tickets pendientes: ${deuda.tickets.join(', ')} + esta compra)`);
+        } else if (!deuda.ok) {
+            // Solo el ticket de la compra. Aviso para quien vende (no para el cliente):
+            mostrarToast(deuda.ambiguo
+                ? '⚠️ Este teléfono tiene fiados a nombre de otra persona (' + deuda.nombres.join(', ') + '): el comprobante sale SIN deuda acumulada. Verificá.'
+                : '⚠️ No se pudo confirmar la deuda acumulada (' + deuda.motivo + '): el comprobante sale solo con esta compra.', 'naranja');
+        }
+        lineas.push('', `✅ Este mensaje es su comprobante de fiado.`, `📍 Almacén Copihue — Copihue 457`);
+        mostrarRecordatorio(lineas.join('\n'));
+        return;
+    }
 
     const now   = new Date();
     const fecha = now.toLocaleDateString('es-AR');
@@ -16356,6 +16789,8 @@ function abrirRetiroCaja() {
     if (rcCatResumenTexto) rcCatResumenTexto.innerHTML = 'Tocá para elegir una categoría ▾';
     const rcCatGrid = document.getElementById('rcCatGrid');
     if (rcCatGrid) rcCatGrid.style.display = 'none';
+    rcTarjetaCancelarNueva();
+    rcRenderTarjetas();   // v522: sin categoría elegida, no hay tarjetas
     // El filtro de fecha arranca vacío (historial completo por defecto,
     // sin recorte de días — ver v417). El botón "Todo" limpia el filtro.
     document.getElementById('filtroFechaSalidas').value = '';
@@ -16392,6 +16827,115 @@ function rcToggleCategorias() {
     grid.style.display = (grid.style.display === 'none' || !grid.style.display) ? 'grid' : 'none';
 }
 
+// ── v522 — TARJETAS SELECCIONABLES POR CATEGORÍA ──────────────────────────────
+// Para que un mismo gasto (ej. "Claude IA") se escriba SIEMPRE igual y los reportes
+// lo reconozcan como el mismo gasto mensual. Lista base fija (la de la planilla) +
+// tarjetas propias creadas desde acá, que se guardan SOLO en este dispositivo.
+// No cambia lo que se registra: la tarjeta solo completa el campo Observación.
+const _RC_TARJETAS_BASE = {
+    'SUSCRIPCIONES': ['Netflix','HBO Max','Amazon Prime','YouTube Premium','Starlink','Tuenti','Paramount+','Claude IA','Amazon Music','IPTV','Boleta de luz CEB','Empretienda']
+};
+const _RC_TARJ_LS = 'rc_tarjetas_v1';
+let _rcTarjActual = [];   // [{n:nombre, propia:bool}] en el orden mostrado
+function _rcTarjNorm(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
+function _rcTarjEsc(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _rcTarjPropias(cat) {
+    try { const o = JSON.parse(localStorage.getItem(_RC_TARJ_LS) || '{}'); return Array.isArray(o[cat]) ? o[cat].filter(x => typeof x === 'string' && x.trim()) : []; }
+    catch (e) { return []; }
+}
+function _rcTarjGuardarPropias(cat, arr) {
+    try { const o = JSON.parse(localStorage.getItem(_RC_TARJ_LS) || '{}'); o[cat] = arr; localStorage.setItem(_RC_TARJ_LS, JSON.stringify(o)); return true; }
+    catch (e) { return false; }
+}
+function _rcTarjLista(cat) {
+    const base = _RC_TARJETAS_BASE[cat];
+    if (!base) return null;
+    const vistos = new Set(base.map(_rcTarjNorm));
+    const propias = [];
+    _rcTarjPropias(cat).forEach(n => { const k = _rcTarjNorm(n); if (!vistos.has(k)) { vistos.add(k); propias.push(n); } });
+    return base.map(n => ({ n, propia: false })).concat(propias.map(n => ({ n, propia: true })));
+}
+// Si lo escrito coincide con una tarjeta (sin importar mayúsculas/tildes/espacios), se guarda con el nombre de la tarjeta
+function _rcCanonObs(texto, cat) {
+    const lista = _rcTarjLista(cat);
+    if (!lista) return texto;
+    const k = _rcTarjNorm(texto);
+    const t = lista.find(x => _rcTarjNorm(x.n) === k);
+    return t ? t.n : texto;
+}
+function rcRenderTarjetas() {
+    const wrap = document.getElementById('rcTarjetasWrap');
+    const grid = document.getElementById('rcTarjetas');
+    if (!wrap || !grid) return;
+    const lista = _rcTarjLista(_rcCategoriaSeleccionada);
+    if (!lista) { wrap.style.display = 'none'; grid.innerHTML = ''; _rcTarjActual = []; return; }
+    _rcTarjActual = lista;
+    const obs = document.getElementById('rcObservacion');
+    const actual = _rcTarjNorm(obs ? obs.value : '');
+    grid.innerHTML = lista.map((t, i) => {
+        const sel = actual && _rcTarjNorm(t.n) === actual;
+        const estilo = 'position:relative;padding:11px 8px;border-radius:12px;font-size:0.85rem;font-weight:800;cursor:pointer;text-align:center;' +
+            (sel ? 'border:2px solid #2e7d32;background:#2e7d32;color:#fff;' : 'border:2px solid #e0e0e0;background:#fff;color:#333;');
+        const borrar = t.propia ? '<span onclick="event.stopPropagation();rcTarjetaBorrar(' + i + ')" title="Quitar esta tarjeta" style="position:absolute;top:2px;right:6px;font-size:0.8rem;opacity:.7;">✕</span>' : '';
+        return '<button type="button" onclick="rcTarjetaTap(' + i + ')" style="' + estilo + '">' + (sel ? '✓ ' : '') + _rcTarjEsc(t.n) + borrar + '</button>';
+    }).join('') + '<button type="button" onclick="rcTarjetaNueva()" style="padding:11px 8px;border-radius:12px;font-size:0.85rem;font-weight:800;cursor:pointer;text-align:center;border:2px dashed #1565c0;background:#e3f2fd;color:#0d47a1;">➕ Crear tarjeta</button>';
+    wrap.style.display = 'block';
+    const hint = document.getElementById('rcTarjetasHint');
+    if (hint) hint.textContent = '— tocá para completar el nombre';
+    // Autocompletado del teclado: solo con los nombres de las tarjetas (sin variantes sueltas)
+    const obsInput = document.getElementById('rcObservacion');
+    let dl = document.getElementById('rcSuscList');
+    if (!dl) { dl = document.createElement('datalist'); dl.id = 'rcSuscList'; document.body.appendChild(dl); }
+    dl.innerHTML = lista.map(t => '<option value="' + _rcTarjEsc(t.n) + '">').join('');
+    if (obsInput) obsInput.setAttribute('list', 'rcSuscList');
+}
+function rcTarjetaTap(i) {
+    const t = _rcTarjActual[i];
+    const obs = document.getElementById('rcObservacion');
+    if (!t || !obs) return;
+    obs.value = (_rcTarjNorm(obs.value) === _rcTarjNorm(t.n)) ? '' : t.n;   // tocar de nuevo la quita
+    rcRenderTarjetas();
+}
+function rcTarjetaNueva() {
+    const box = document.getElementById('rcTarjetaNueva');
+    if (!box) return;
+    box.style.display = 'flex';
+    const inp = document.getElementById('rcTarjetaNuevaInput');
+    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+}
+function rcTarjetaCancelarNueva() {
+    const box = document.getElementById('rcTarjetaNueva');
+    if (box) box.style.display = 'none';
+}
+function rcTarjetaGuardarNueva() {
+    const cat = _rcCategoriaSeleccionada;
+    const inp = document.getElementById('rcTarjetaNuevaInput');
+    if (!inp || !_RC_TARJETAS_BASE[cat]) return;
+    const nombre = inp.value.replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!nombre) { inp.focus(); return; }
+    const existente = (_rcTarjLista(cat) || []).find(x => _rcTarjNorm(x.n) === _rcTarjNorm(nombre));
+    const obs = document.getElementById('rcObservacion');
+    if (existente) {
+        if (obs) obs.value = existente.n;
+        mostrarToast('Ya existía la tarjeta "' + existente.n + '". La seleccioné.', 'naranja');
+    } else {
+        const propias = _rcTarjPropias(cat).concat([nombre]);
+        const ok = _rcTarjGuardarPropias(cat, propias);
+        if (obs) obs.value = nombre;
+        mostrarToast(ok ? '✅ Tarjeta "' + nombre + '" creada (queda en este dispositivo)' : 'No se pudo guardar la tarjeta en este dispositivo; se usa solo para este gasto', ok ? 'verde' : 'naranja');
+    }
+    rcTarjetaCancelarNueva();
+    rcRenderTarjetas();
+}
+function rcTarjetaBorrar(i) {
+    const t = _rcTarjActual[i];
+    const cat = _rcCategoriaSeleccionada;
+    if (!t || !t.propia) return;
+    if (!confirm('¿Quitar la tarjeta "' + t.n + '"? Los gastos ya registrados no cambian.')) return;
+    _rcTarjGuardarPropias(cat, _rcTarjPropias(cat).filter(x => _rcTarjNorm(x) !== _rcTarjNorm(t.n)));
+    rcRenderTarjetas();
+}
+
 function selRcCategoria(cat) {
     _rcCategoriaSeleccionada = cat;
     document.getElementById('rcCategoria').value = cat;
@@ -16418,16 +16962,10 @@ function selRcCategoria(cat) {
     };
     const hint = document.getElementById('rcObsHint');
     if (hint) hint.textContent = hints[cat] ? '— ' + hints[cat] : '';
-    // Si es SUSCRIPCIONES, agregar datalist con nombres canónicos
+    // v522 — tarjetas de la categoría (y autocompletado con los mismos nombres)
     const obsInput = document.getElementById('rcObservacion');
-    let dl = document.getElementById('rcSuscList');
-    if(cat === 'SUSCRIPCIONES'){
-        if(!dl){ dl=document.createElement('datalist'); dl.id='rcSuscList'; document.body.appendChild(dl); }
-        dl.innerHTML = ['Netflix', 'HBO Max', 'Amazon Prime', 'YouTube Premium', 'Paramount+', 'Starlink', 'Spotify', 'Tuenti', 'IPTV', 'Empretienda', 'Disney+', 'Apple TV+', 'Amazon Music', 'Prime Video'].map(s=>`<option value="${s}">`).join('');
-        if(obsInput) obsInput.setAttribute('list','rcSuscList');
-    } else {
-        if(obsInput) obsInput.removeAttribute('list');
-    }
+    if (obsInput && !_RC_TARJETAS_BASE[cat]) obsInput.removeAttribute('list');
+    rcRenderTarjetas();
     // Si selecciona FAMILIA CHILE y el monto está vacío, sugerir $85K
     if (cat === 'FAMILIA CHILE') {
         const m = document.getElementById('rcMonto');
@@ -16444,7 +16982,7 @@ async function confirmarRetiroCaja() {
     const monto = parseFloat(document.getElementById('rcMonto').value);
     const motivo = document.getElementById('rcMotivo').value.trim();
     const categoria = _rcCategoriaSeleccionada;
-    const observacion = document.getElementById('rcObservacion').value.trim();
+    const observacion = _rcCanonObs(document.getElementById('rcObservacion').value.trim(), categoria);   // v522: mismo nombre que la tarjeta
     const errDiv = document.getElementById('rcError');
 
     if (!monto || monto <= 0) {
@@ -16507,6 +17045,13 @@ async function confirmarRetiroCaja() {
                 const el2 = document.getElementById(id);
                 if (el2) el2.classList.remove('activo');
             });
+            // v522 — el cartel de categoría quedaba mostrando la anterior aunque ya no estuviera elegida
+            const rcResTxt = document.getElementById('rcCatResumenTexto');
+            if (rcResTxt) rcResTxt.innerHTML = 'Tocá para elegir una categoría ▾';
+            const rcGridPost = document.getElementById('rcCatGrid');
+            if (rcGridPost) rcGridPost.style.display = 'none';
+            rcTarjetaCancelarNueva();
+            rcRenderTarjetas();
             cargarHistorialSalidas();
         } else {
             errDiv.textContent = '❌ Error: ' + (resp.mensaje || resp.error || 'Error desconocido');
@@ -16658,7 +17203,11 @@ async function cargarHistorialRetiros() {
         <div class="modal-handle"></div>
         <div class="modal-header" style="flex-shrink:0;">
             <span class="modal-titulo">💸 Caja — Egresos</span>
-            <button class="modal-cerrar" onclick="cerrarRetiroCaja()">✕</button>
+            <!-- v521 — Acceso a la página de reportes de retiros de caja (solo navega; no toca el registro de retiros) -->
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+                <button onclick="abrirRetirosDeCaja()" title="Reportes de retiros de caja y Excel" style="background:#e3f2fd;border:1.5px solid #1565c0;color:#0d47a1;border-radius:10px;padding:6px 9px;font-size:0.74rem;font-weight:800;cursor:pointer;white-space:nowrap;font-family:inherit;">📊 Reportes</button>
+                <button class="modal-cerrar" onclick="cerrarRetiroCaja()">✕</button>
+            </div>
         </div>
 
         <!-- Scroll area -->
@@ -16711,7 +17260,7 @@ async function cargarHistorialRetiros() {
                         <span style="font-size:0.75rem;color:#1565c0;font-weight:700;">Cambiar</span>
                     </div>
                     <div id="rcCatGrid" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
-                        <button type="button" class="cat-btn cat-proveedor" id="rcCatPROVEEDORES" onclick="selRcCategoria('PROVEEDORES')" style="font-size:0.72rem;">🚚 PROVEEDORES</button>
+                        <button type="button" class="cat-btn" id="rcCatPROVEEDORES" onclick="selRcCategoria('PROVEEDORES')" style="font-size:0.72rem;">🚚 PROVEEDORES</button>
                         <button type="button" class="cat-btn" id="rcCatSALUD"          onclick="selRcCategoria('SALUD')"          style="font-size:0.72rem;">💊 SALUD</button>
                         <button type="button" class="cat-btn" id="rcCatTRANSPORTE"     onclick="selRcCategoria('TRANSPORTE')"     style="font-size:0.72rem;">🚗 TRANSPORTE</button>
                         <button type="button" class="cat-btn" id="rcCatSUSCRIPCIONES"  onclick="selRcCategoria('SUSCRIPCIONES')"  style="font-size:0.72rem;">📺 SUSCRIPC.</button>
@@ -16728,9 +17277,20 @@ async function cargarHistorialRetiros() {
                     <input type="hidden" id="rcCategoria">
                 </div>
 
+                <!-- v522 — Tarjetas seleccionables de la categoría elegida (hoy: SUSCRIPCIONES) -->
+                <div class="form-grupo" id="rcTarjetasWrap" style="display:none;">
+                    <label class="form-label">Elegí una tarjeta <span id="rcTarjetasHint" style="font-weight:400;color:#888;font-size:0.75rem;"></span></label>
+                    <div id="rcTarjetas" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+                    <div id="rcTarjetaNueva" style="display:none;margin-top:8px;gap:6px;align-items:center;">
+                        <input type="text" class="form-input" id="rcTarjetaNuevaInput" maxlength="40" placeholder="Nombre de la tarjeta (ej: Disney+)" autocomplete="off" style="flex:1;margin:0;">
+                        <button type="button" onclick="rcTarjetaGuardarNueva()" style="padding:10px 12px;border:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:800;font-size:0.82rem;cursor:pointer;">Guardar</button>
+                        <button type="button" onclick="rcTarjetaCancelarNueva()" style="padding:10px 10px;border:1.5px solid #ddd;border-radius:10px;background:#fff;color:#666;font-weight:800;font-size:0.82rem;cursor:pointer;">✕</button>
+                    </div>
+                </div>
+
                 <div class="form-grupo">
                     <label class="form-label">Observación <span id="rcObsHint" style="font-weight:400;color:#888;font-size:0.75rem;"></span></label>
-                    <input type="text" class="form-input" id="rcObservacion"
+                    <input type="text" class="form-input" id="rcObservacion" oninput="rcRenderTarjetas()"
                            placeholder="Ej: Pago boleta de luz" autocomplete="off">
                 </div>
 
