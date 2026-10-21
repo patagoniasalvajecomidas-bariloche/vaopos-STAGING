@@ -962,7 +962,7 @@ if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 25;
+const APP_VERSION = 26;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
 
@@ -2902,11 +2902,17 @@ async function abrirMisDatos() {
 }
 function cerrarMisDatos() { document.getElementById('modalMisDatos').classList.remove('open'); }
 
-// Celda segura para CSV: comillas dobles, y si empieza con = + - @ (o tab/retorno) se antepone un apóstrofo
-// para que Excel no la ejecute como fórmula.
+// Celda segura para CSV: siempre entre comillas dobles (soporta ; comillas y saltos de línea).
+// Si empieza con = + - @ (o tab/retorno) se antepone un apóstrofo para que Excel no la ejecute como fórmula.
+// Excepción: un número NEGATIVO legítimo (-5 · -1500 · -1.234,56 · -1234.5 · -$1.500 · -5%) queda tal cual,
+// para que Excel lo tome como número. Solo dígitos y separadores: nada que se pueda ejecutar.
+const _NEGATIVO_CSV = /^-\$?\s?\d+([.,]\d+)*%?$/;
 function _celdaCSV(v) {
+    // V26: un número llega con su valor real (2500 · -1500 · 1234.56) y se escribe como lo lee Excel en español:
+    // sin separador de miles y con coma decimal (2500 · -1500 · 1234,56).
+    if (typeof v === 'number' && isFinite(v)) v = String(Math.round(v * 1e6) / 1e6).replace('.', ',');
     let t = String(v === null || v === undefined ? '' : v);
-    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    if (/^[=+\-@\t\r]/.test(t) && !_NEGATIVO_CSV.test(t)) t = "'" + t;
     return '"' + t.replace(/"/g, '""') + '"';
 }
 async function descargarHojaCSV(btn) {
