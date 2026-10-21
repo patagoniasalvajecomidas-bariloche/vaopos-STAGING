@@ -130,6 +130,14 @@ body {
 .btn-tool.cerrar   { background: rgba(214,66,66,0.6); }
         .btn-tool.stats    { background: rgba(90,158,111,0.85); }
 .btn-tool.fiados   { background: rgba(142,68,173,0.75); } /* V22: antes no tenía fondo y el texto blanco no se leía */
+.btn-tool.datos    { background: rgba(30,136,229,0.75); } /* V25: Mis datos */
+#avisoPrueba.consulta { background:#FFEBEE; color:#B71C1C; }
+#avisoPrueba.consulta button { background:#1565C0; }
+.md-fila { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 2px; border-bottom:1px solid #eee; }
+.md-fila b { display:block; font-size:0.92rem; }
+.md-fila small { color:#777; font-size:0.76rem; }
+.md-fila button { border:none; border-radius:12px; padding:9px 12px; font-weight:800; background:#1565C0; color:#fff; cursor:pointer; font-family:inherit; white-space:nowrap; }
+.md-fila button:disabled { background:#9E9E9E; }
 /* V22 (B7): en celulares chicos, ícono arriba y texto abajo — no se corta */
 @media (max-width: 480px) {
     .toolbar { padding: 6px 6px; gap: 4px; }
@@ -688,6 +696,7 @@ body {
     <button class="btn-tool hoy" id="btnHoy" onclick="abrirResumen()"><span class="ico">📋</span><span class="txt">Hoy</span></button>
     <button class="btn-tool stats" id="btnReportes" onclick="window.location.href='reportes.html?p='+PREFIJO"><span class="ico">📊</span><span class="txt">Reportes</span></button>
     <button class="btn-tool fiados" id="btnFiados" onclick="window.location.href='fiados.html?p='+PREFIJO"><span class="ico">🧾</span><span class="txt">Fiados</span></button>
+    <button class="btn-tool datos" id="btnMisDatos" onclick="abrirMisDatos()"><span class="ico">📥</span><span class="txt">Mis datos</span></button>
     <button class="btn-tool cerrar" onclick="irAlInicio()"><span class="ico">🚪</span><span class="txt">Salir</span></button>
 </div>
 
@@ -953,7 +962,7 @@ if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
 
@@ -971,7 +980,9 @@ async function _llamarAPI(action, payload) {
         r = await fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                                    body: JSON.stringify({ action: action, prefijo: PREFIJO, data: payload }) });
     }
-    return r.json();
+    const j = await r.json();
+    if (j && j.soloLectura && !MODO_CONSULTA) setTimeout(verificarSesionCliente, 0); // V25: pasa a modo consulta
+    return j;
 }
 
 // ========== V22 (A1): borradores locales por negocio y formulario ==========
@@ -985,6 +996,7 @@ function _borrarBorrador(form) { try { localStorage.removeItem(_borradorKey(form
 // ========== SESIÓN CLIENTE (PIN) ==========
 const TOKEN_KEY = 'vao_token_' + PREFIJO;
 let CONFIG_ACTUAL = null;
+let MODO_CONSULTA = null; // V25: { motivo: 'VENCIDA' | 'SUSPENDIDA', mensaje } cuando el negocio está en solo lectura
 
 function generarToolbarSegunPacks(config) {
     const botonesPorPack = {
@@ -1028,7 +1040,7 @@ async function intentarLoginPin() {
     }
     btn.disabled = true; btn.textContent = 'Verificando...';
     try {
-        const url = API_URL + '?action=clienteLogin&data=' + encodeURIComponent(JSON.stringify({ prefijo: PREFIJO, pin: pin }));
+        const url = API_URL + '?action=clienteLogin&data=' + encodeURIComponent(JSON.stringify({ prefijo: PREFIJO, pin: pin, modoConsulta: true })); // V25
         const r = await fetch(url, { redirect: 'follow' });
         const d = await r.json();
         if (d.success && d.token) {
@@ -1047,7 +1059,7 @@ async function verificarSesionCliente() {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) { mostrarFormularioPin(); return; }
     try {
-        const url = API_URL + '?action=getConfig&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify({ token: token }));
+        const url = API_URL + '?action=getConfig&prefijo=' + PREFIJO + '&data=' + encodeURIComponent(JSON.stringify({ token: token, modoConsulta: true })); // V25
         const r = await fetch(url, { redirect: 'follow' });
         const d = await r.json();
         if (d.error) {
@@ -1059,6 +1071,7 @@ async function verificarSesionCliente() {
             ocultarOverlayPin();
             cargarDatosVendedor(); // V21: nombre/alias del negocio, ya con sesión
             mostrarEstadoPrueba(CONFIG_ACTUAL.estadoPrueba); // V23
+            aplicarModoConsulta(CONFIG_ACTUAL.modoConsulta); // V25: vencido o suspendido → solo lectura
             // Paso 11: el catálogo (con costos y proveedores) recién se
             // pide una vez que la sesión quedó confirmada como válida —
             // antes se pedía en el INIT del script, sin esperar el login.
@@ -1830,6 +1843,7 @@ async function confirmarVenta() {
         const motivo = bloqueados.length
             ? bloqueados.join(', ') + ': sin stock.'
             : (resp.errores || []).join(' · ');
+        if (resp.soloLectura) { cerrarConfirm(); mostrarToast('❌ No se registró la venta. ' + motivo, 'rojo'); return; } // V25
         mostrarToast('❌ No se registró la venta. ' + motivo + ' Corregí el carrito.', 'rojo');
         cargarProductos();
         return;
@@ -1998,6 +2012,7 @@ async function confirmarVentaFiado() {
         localStorage.removeItem(_ventaEnCursoKey());
         btn.disabled = false;
         btn.textContent = '✅ Confirmar';
+        if (resp.soloLectura) cerrarConfirm(); // V25
         mostrarToast('❌ ' + (resp.error || 'No se registró la venta.'), 'rojo');
         cargarProductos();
         return;
@@ -2662,7 +2677,7 @@ async function verificarPendientesAlIniciar() {
     }
     // V22 (A1): si quedó un formulario a medio escribir, se vuelve a abrir solo.
     const visible = id => { const b = document.getElementById(id); return b && b.style.display !== 'none'; };
-    if (!document.querySelector('.modal-bg.open')) {
+    if (!document.querySelector('.modal-bg.open') && !MODO_CONSULTA) { // V25
         if (_leerBorrador('ingreso') && visible('btnIngreso') && !localStorage.getItem(_ingresoEnCursoKey())) abrirIngreso();
         else if (_leerBorrador('ajuste') && visible('btnAjuste')) abrirAjuste();
     }
@@ -2708,7 +2723,8 @@ const CIERRES_MODAL = {
     modalIngreso: function () { cerrarIngreso(); },
     modalAjuste:  function () { cerrarAjuste(); },
     modalResumen: function () { cerrarResumen(); },
-    modalStats:   function () { cerrarEstadisticas(); }
+    modalStats:   function () { cerrarEstadisticas(); },
+    modalMisDatos: function () { cerrarMisDatos(); }
 };
 let _modalEnHistorial = null, _ignorarPop = false;
 new MutationObserver(function () {
@@ -2854,11 +2870,74 @@ function mostrarEstadoPrueba(ep) {
     } else {
         div.className = 'vencida'; div.style.display = 'block'; div.style.background = ''; div.style.color = '';
         div.innerHTML = '🔒 La prueba gratuita terminó el ' + _escHTML(ep.finGraciaTxt) + '. Tus datos están guardados: podés consultarlos y descargarlos.<br>' +
-            '<button onclick="descargarDatos(\'inventario\')">📥 Productos</button><button onclick="descargarDatos(\'ventas\')">📥 Ventas</button><button onclick="descargarDatos(\'fiados\')">📥 Fiados</button>';
+            '<button onclick="abrirMisDatos()">📥 Mis datos</button>'; // V25: todas las hojas, de a una
         ['btnIngreso', 'btnAjuste'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('bloqueado-prueba'); });
         document.querySelector('.btn-cobrar').classList.add('bloqueado-prueba');
     }
 }
+// ========== V25: MODO CONSULTA (vencido o suspendido) ==========
+function aplicarModoConsulta(mc) {
+    MODO_CONSULTA = mc || null;
+    if (!mc) return;                        // vigente: mostrarEstadoPrueba ya dejó todo como corresponde
+    const div = document.getElementById('avisoPrueba');
+    div.className = 'consulta'; div.style.display = 'block'; div.style.background = ''; div.style.color = '';
+    div.innerHTML = _escHTML(mc.mensaje || '🔒 Modo consulta: podés ver y descargar tus datos.') + '<br><button onclick="abrirMisDatos()">📥 Mis datos</button>';
+    ['btnIngreso', 'btnAjuste'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('bloqueado-prueba'); });
+    document.querySelector('.btn-cobrar').classList.add('bloqueado-prueba');
+}
+
+// ========== V25: MIS DATOS — descarga hoja por hoja (CSV) ==========
+async function abrirMisDatos() {
+    document.getElementById('modalMisDatos').classList.add('open');
+    document.getElementById('misDatosEstado').textContent = '';
+    const lista = document.getElementById('misDatosLista');
+    lista.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb;">Cargando…</div>';
+    try {
+        const r = await _llamarAPI('listarHojasDescargables', { token: _tokenActual() });
+        if (!r || !r.success) { lista.innerHTML = '<div style="color:#C62828;padding:14px 0;">❌ ' + _escHTML((r && r.error) || 'No se pudo cargar la lista') + '</div>'; return; }
+        lista.innerHTML = r.hojas.map(h => '<div class="md-fila"><div><b>' + _escHTML(h.nombre) + '</b><small>' +
+            (h.filas ? h.filas.toLocaleString('es-AR') + (h.filas === 1 ? ' registro' : ' registros') : 'sin registros') + '</small></div>' +
+            '<button data-hoja="' + _escHTML(h.clave) + '" onclick="descargarHojaCSV(this)"' + (h.filas ? '' : ' disabled') + '>Descargar</button></div>').join('');
+    } catch (e) { lista.innerHTML = '<div style="color:#C62828;padding:14px 0;">📡 Sin conexión. Probá de nuevo.</div>'; }
+}
+function cerrarMisDatos() { document.getElementById('modalMisDatos').classList.remove('open'); }
+
+// Celda segura para CSV: comillas dobles, y si empieza con = + - @ (o tab/retorno) se antepone un apóstrofo
+// para que Excel no la ejecute como fórmula.
+function _celdaCSV(v) {
+    let t = String(v === null || v === undefined ? '' : v);
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return '"' + t.replace(/"/g, '""') + '"';
+}
+async function descargarHojaCSV(btn) {
+    const clave = btn.getAttribute('data-hoja');
+    const estado = document.getElementById('misDatosEstado');
+    document.querySelectorAll('#misDatosLista button').forEach(b => b.disabled = true);
+    let filas = [], enc = null, nombre = clave, desde = 0, total = 0;
+    try {
+        while (true) {
+            const r = await _llamarAPI('descargarHoja', { token: _tokenActual(), hoja: clave, desde: desde });
+            if (!r || !r.success) throw new Error((r && r.error) || 'No se pudo descargar');
+            if (enc === null) { enc = r.encabezados || []; nombre = r.nombre || clave; }
+            total = r.total || 0;
+            filas = filas.concat(r.filas || []);
+            desde += (r.filas || []).length;
+            estado.textContent = '⏳ ' + nombre + ': ' + desde.toLocaleString('es-AR') + ' de ' + total.toLocaleString('es-AR');
+            if (!(r.filas || []).length || desde >= total) break;
+        }
+        const lineas = [enc].concat(filas).filter(f => f && f.length).map(f => f.map(_celdaCSV).join(';'));
+        const hoy = new Date(); const fecha = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob(['\ufeff' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+        a.download = 'VAO_' + PREFIJO + '_' + clave + '_' + fecha + '.csv';
+        document.body.appendChild(a); a.click(); a.remove();
+        estado.textContent = '✅ ' + nombre + ' descargada (' + filas.length.toLocaleString('es-AR') + (filas.length === 1 ? ' registro)' : ' registros)');
+    } catch (e) {
+        estado.textContent = '❌ ' + (e && e.message && e.message !== 'Failed to fetch' ? e.message : 'Sin conexión: no se pudo descargar. Probá de nuevo.');
+    }
+    document.querySelectorAll('#misDatosLista button').forEach(b => { b.disabled = /sin registros/.test(b.parentElement.textContent); });
+}
+
 async function descargarDatos(que) {
     try {
         const r = await _llamarAPI('exportarDatos', { token: _tokenActual() });
@@ -2872,6 +2951,22 @@ async function descargarDatos(que) {
     } catch (e) { mostrarToast('📡 Sin conexión: no se pudo descargar', 'rojo'); }
 }
 </script>
+<!-- ===== V25: MODAL MIS DATOS (descarga hoja por hoja) ===== -->
+<div class="modal-bg" id="modalMisDatos" onclick="if(event.target===this)cerrarMisDatos()">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <span class="modal-titulo">📥 Mis datos</span>
+            <button class="modal-cerrar" onclick="cerrarMisDatos()">✕</button>
+        </div>
+        <div style="overflow-y:auto;max-height:78vh;padding:0 16px 18px;">
+            <div style="font-size:0.82rem;color:#555;margin:2px 0 8px;">Tus registros son tuyos. Descargá cada hoja en un archivo que abre Excel o Google Sheets (CSV). Solo tus datos: nunca los de otros comercios.</div>
+            <div id="misDatosLista"><div style="text-align:center;padding:30px;color:#bbb;">Cargando…</div></div>
+            <div id="misDatosEstado" style="font-size:0.82rem;color:#0D47A1;font-weight:700;margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
 <!-- ===== MODAL ESTADÍSTICAS ===== -->
 <div class="modal-bg" id="modalStats" onclick="if(event.target===this)cerrarEstadisticas()">
     <div class="modal-sheet" style="border-radius:24px 24px 0 0;">
