@@ -131,6 +131,11 @@ body {
         .btn-tool.stats    { background: rgba(90,158,111,0.85); }
 .btn-tool.fiados   { background: rgba(142,68,173,0.75); } /* V22: antes no tenía fondo y el texto blanco no se leía */
 .btn-tool.datos    { background: rgba(30,136,229,0.75); } /* V25: Mis datos */
+/* V28: enlace «📄 Términos» del encabezado (mismo aspecto que 📣 y 🏠). En celulares, solo el ícono (la descripción accesible siempre está). */
+.lnk-terminos { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.15); color: white; border-radius: 20px;
+                padding: 5px 10px; font-size: 0.72rem; font-weight: 700; text-decoration: none; font-family: inherit; white-space: nowrap; margin-right: 6px; }
+.lnk-terminos:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+@media (max-width: 479px) { .lnk-terminos { padding: 5px 6px; margin-right: 0; font-size: 0.68rem; } .lnk-terminos-txt { display: none; } } /* medido: con el texto, el encabezado crecía por debajo de 480 px */
 #avisoPrueba.consulta { background:#FFEBEE; color:#B71C1C; }
 #avisoPrueba.consulta button { background:#1565C0; }
 .md-fila { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 2px; border-bottom:1px solid #eee; }
@@ -667,6 +672,8 @@ body {
     </div>
     <div class="header-right">
         <div class="indicador-carga" id="indicadorCarga" title="Cargando..."></div>
+        <!-- V28: contrato digital. Enlace normal en pestaña nueva: el POS (carrito, sesión, pendientes) queda abierto. El href se completa con el prefijo validado. -->
+        <a id="lnkTerminos" class="lnk-terminos" href="contrato.html" target="_blank" rel="noopener noreferrer" title="Términos del servicio" aria-label="Términos del servicio"><span aria-hidden="true">📄</span><span class="lnk-terminos-txt" aria-hidden="true">Términos</span></a>
         <button onclick="abrirRecomendar()" title="Recomendar VAO POS" aria-label="Recomendar VAO POS" style="background:rgba(255,255,255,0.15);border:none;
                 color:white;border-radius:20px;padding:5px 10px;font-size:0.72rem;
                 font-weight:700;cursor:pointer;font-family:inherit;margin-right:6px;">📣</button>
@@ -962,7 +969,7 @@ if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 27;
+const APP_VERSION = 28;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
 
@@ -1146,6 +1153,7 @@ function irAlInicio() {
 
 // Avatar provisional con color del algoritmo
 document.getElementById('headerTitulo').textContent = PREFIJO;
+document.getElementById('lnkTerminos').href = 'contrato.html?p=' + encodeURIComponent(PREFIJO); // V28: contrato digital del comercio conectado
 document.getElementById('headerAvatar').textContent = PREFIJO;
 document.title = PREFIJO + ' · Punto de Venta';
 document.getElementById('headerSub').textContent = 'VAO Sistemas · v' + APP_VERSION;
