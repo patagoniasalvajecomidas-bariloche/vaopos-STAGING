@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>VAO POS · Contrato del servicio</title>
+<!--
+  VAO POS MULTIHOJA — contrato.html V1 (STAGING) — 21/10/2026
+  Backend requerido: v039 (contratoSolicitarCodigo, getAnexoC, contratoAceptar, getConstancia, verificarConstancia, getContrato).
+  Reglas de esta página:
+   · Nunca registra una aceptación sola: contratoAceptar COMPLETO sale solo al tocar "Aceptar" con la casilla marcada.
+   · Para comprobar una operación incierta usa SOLO la consulta segura: contratoAceptar con prefijo + solicitudId + claveCliente,
+     sin código ni "confirmo" (el backend busca primero la aceptación y, si no existe, se detiene sin registrar nada).
+   · Un error de red o una respuesta inesperada NUNCA se toma como "no registrada".
+   · La verificación pública (#v=…&k=…) usa solo verificarConstancia y no lee nada guardado en el dispositivo.
+-->
+<style>
+:root {
+  --tinta: #0D47A1; --azul: #1E88E5; --azul-osc: #1565C0; --verde: #2E7D32; --fondo: #E9F1FA; --papel: #FFFFFF;
+  --texto: #16263D; --suave: #4D6079; --borde: #C9D8EA; --aviso: #7A4100; --aviso-fondo: #FFF4D6; --rojo: #B3261E; --rojo-fondo: #FDECEA;
+  --ok-fondo: #EAF6EC; --radio: 14px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--fondo); color: var(--texto);
+       font-size: 17px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+.franja { position: sticky; top: 0; z-index: 20; background: #FFD54F; color: #3E2A00; text-align: center; font-weight: 800; letter-spacing: .02em;
+          padding: 8px 12px; font-size: .95rem; border-bottom: 2px solid #C49000; }
+.franja small { display: block; font-weight: 600; font-size: .8rem; letter-spacing: 0; }
+header { background: var(--tinta); color: #fff; padding: 14px 16px; }
+header .marca { font-weight: 800; font-size: 1.1rem; }
+header .sub { opacity: .85; font-size: .9rem; }
+main { max-width: 680px; margin: 0 auto; padding: 14px 14px 40px; }
+.tarjeta { background: var(--papel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; margin: 0 0 14px; box-shadow: 0 1px 2px rgba(13,71,161,.06); }
+h1 { font-size: 1.3rem; margin: 0 0 6px; color: var(--tinta); }
+h2 { font-size: 1.1rem; margin: 0 0 8px; color: var(--tinta); }
+p { margin: 6px 0; }
+.suave { color: var(--suave); font-size: .92rem; }
+.pasos { display: flex; gap: 6px; margin: 0 0 12px; }
+.pasos span { flex: 1; height: 6px; border-radius: 3px; background: var(--borde); }
+.pasos span.hecho { background: var(--azul); }
+.contrato-texto { white-space: pre-wrap; word-wrap: break-word; background: #FAFCFF; border: 1px solid var(--borde); border-radius: 10px; padding: 14px;
+                  max-height: 55vh; overflow-y: auto; font-size: 1rem; }
+.huella { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .78rem; word-break: break-all; color: var(--suave); }
+button, .boton { display: block; width: 100%; min-height: 52px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; font-size: 1.05rem;
+                 padding: 12px 16px; margin: 10px 0 0; cursor: pointer; background: var(--azul); color: #fff; text-align: center; text-decoration: none; }
+button:hover:not(:disabled) { background: var(--azul-osc); }
+button.secundario { background: #fff; color: var(--azul-osc); border: 2px solid var(--azul); }
+button.peligro { background: #fff; color: var(--rojo); border: 2px solid var(--rojo); }
+button.chico { min-height: 44px; font-size: .95rem; }
+button:disabled { background: #B7C6D8; color: #F4F7FB; border-color: #B7C6D8; cursor: not-allowed; }
+button.secundario:disabled, button.peligro:disabled { background: #fff; color: #9AAABD; border-color: #C9D3DF; }
+label { display: block; font-weight: 700; margin: 12px 0 4px; }
+input[type=text] { width: 100%; font: inherit; font-size: 1.05rem; padding: 12px; border: 2px solid var(--borde); border-radius: 10px; background: #fff; color: var(--texto); }
+input[type=text]:focus { outline: none; border-color: var(--azul); }
+input.codigo { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.9rem; letter-spacing: .45em; text-align: center; padding: 10px 6px; }
+.casilla { display: flex; gap: 12px; align-items: flex-start; background: #F3F8FE; border: 2px solid var(--borde); border-radius: 12px; padding: 14px; margin: 14px 0 0; cursor: pointer; font-weight: 700; }
+.casilla input { width: 26px; height: 26px; flex: 0 0 26px; margin: 0; accent-color: var(--azul); }
+.msg { border-radius: 10px; padding: 12px 14px; margin: 12px 0 0; font-weight: 600; }
+.msg.info { background: #E3F0FD; color: var(--tinta); }
+.msg.ok { background: var(--ok-fondo); color: #1B5E20; }
+.msg.aviso { background: var(--aviso-fondo); color: var(--aviso); }
+.msg.error { background: var(--rojo-fondo); color: var(--rojo); }
+.msg:empty { display: none; }
+.fila { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #E6EEF7; }
+.fila:last-child { border-bottom: 0; }
+.fila .k { color: var(--suave); }
+.fila .v { font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+.precio .v { font-size: 1.15rem; }
+.grande { font-size: 2rem; font-weight: 800; text-align: center; margin: 6px 0; }
+.grande.valida { color: var(--verde); }
+.grande.alterada { color: var(--rojo); }
+.oculto { display: none !important; }
+.cuenta { font-variant-numeric: tabular-nums; }
+.opcion-plan { display: flex; gap: 10px; align-items: center; border: 2px solid var(--borde); border-radius: 10px; padding: 12px; margin: 8px 0 0; cursor: pointer; font-weight: 700; }
+.opcion-plan input { width: 22px; height: 22px; accent-color: var(--azul); }
+.enlace { color: var(--azul-osc); font-weight: 700; background: none; border: 0; padding: 0; min-height: 0; width: auto; display: inline; margin: 0; text-decoration: underline; font-size: inherit; }
+.enlace:hover:not(:disabled) { background: none; }
+ul.modulos { margin: 4px 0 0; padding-left: 20px; }
+footer { text-align: center; color: var(--suave); font-size: .82rem; padding: 0 16px 30px; }
+@media (min-width: 700px) { body { font-size: 17.5px; } main { padding-top: 22px; } }
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: #fff; font-size: 12pt; }
+  header, footer, button, .no-imprimir, .pasos { display: none !important; }
+  .franja { position: static; border: 2px solid #000; background: #fff; color: #000; }
+  main { max-width: none; padding: 0; }
+  section:not(#pConstancia) { display: none !important; }
+  .tarjeta { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="franja" id="franja" role="note">CONTRATO DE PRUEBA — SIN VALOR LEGAL<small>Entorno de pruebas (STAGING). No habilita pagos ni cambia tu plan.</small></div>
+<header><div class="marca">VAO POS</div><div class="sub" id="subtitulo">Contrato del servicio</div></header>
+
+<main>
+  <div class="msg aviso oculto" id="avisoAlmacen">Este navegador no permite guardar datos. La página funciona, pero si la cerrás no se va a poder recuperar una aceptación en curso.</div>
+
+  <!-- Cargando -->
+  <section id="pCargando"><div class="tarjeta"><p>Cargando…</p></div></section>
+
+  <!-- Sin código de comercio -->
+  <section id="pComercio" class="oculto">
+    <div class="tarjeta">
+      <h1>Contrato del servicio</h1>
+      <p>Ingresá el código de tu comercio (el que figura en el enlace de tu POS, por ejemplo <b>JOV</b>).</p>
+      <label for="inComercio">Código de comercio</label>
+      <input type="text" id="inComercio" maxlength="10" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button id="btnComercio">Continuar</button>
+      <div class="msg error" id="msgComercio"></div>
+    </div>
+  </section>
+
+  <!-- Error general (sin contrato, contrato alterado, etc.) -->
+  <section id="pError" class="oculto">
+    <div class="tarjeta"><h1 id="errTitulo">No se puede continuar</h1><div class="msg error" id="errTexto"></div>
+      <button class="secundario" id="btnErrReintentar">Reintentar</button></div>
+  </section>
+
+  <!-- A · Leer -->
+  <section id="pLeer" class="oculto">
+    <div class="pasos" aria-hidden="true"><span class="hecho"></span><span></span><span></span><span></span></div>
+    <div class="tarjeta oculto" id="tarjetaYaAcepto">
+      <h2>Ya aceptaste en este dispositivo</h2>
+      <p class="suave">Podés ver, imprimir o descargar tu constancia sin pedir otro código.</p>
+      <button id="btnVerConstanciaGuardada">Ver mi constancia</button>
+    </div>
+    <div class="tarjeta oculto" id="tarjetaCodigoEnCurso">
+      <h2>Ya pediste un código</h2>
+      <p class="suave">Si te llegó el correo, podés ingresarlo sin pedir otro.</p>
+      <button class="secundario" id="btnIrACodigo">Ingresar el código que recibí</button>
+    </div>
+    <div class="tarjeta">
+      <h1>Términos del servicio</h1>
+      <p class="suave">Comercio: <b id="leerComercio"></b> · Versión <b id="leerVersion"></b></p>
+      <div class="contrato-texto" id="textoContrato" tabindex="0"></div>
+      <p class="huella">Huella del contrato: <span id="leerHuella"></span></p>
+      <button class="secundario chico" id="btnDescargarTexto">Descargar el texto (.txt)</button>
+    </div>
+    <div class="tarjeta">
+      <h2>Para aceptar</h2>
+      <p>Te enviamos un código de 6 números al <b>correo registrado</b> de tu comercio. Con ese código vas a ver tu plan y tus condiciones económicas antes de aceptar.</p>
+      <button id="btnPedirCodigo">Recibir código por correo</button>
+      <div class="msg" id="msgLeer"></div>
+    </div>
+  </section>
+
+  <!-- B · Código -->
+  <section id="pCodigo" class="oculto">
+    <div class="pasos" aria-hidden="true"><span class="hecho"></span><span class="hecho"></span><span></span><span></span></div>
+    <div class="tarjeta">
+      <h1>Ingresá el código</h1>
+      <div class="msg info" id="msgEnvio"></div>
+      <label for="inCodigo">Código de 6 números</label>
+      <input type="text" id="inCodigo" class="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*">
+      <p class="suave">El código vence 15 minutos después de enviado y sirve una sola vez. <span class="cuenta" id="cuentaCodigo"></span></p>
+      <button id="btnContinuarCodigo">Continuar</button>
+      <div class="msg" id="msgCodigo"></div>
+    </div>
+    <div class="tarjeta">
+      <h2>¿No te llegó?</h2>
+      <p class="suave">Revisá también la carpeta de spam. Si no llega, podés reenviarlo (una vez por pedido) o pedir un código nuevo. Hay un máximo de 3 pedidos por día.</p>
+      <button class="secundario" id="btnReenviar">Reenviar el código</button>
+      <button class="secundario" id="btnCodigoNuevo">Pedir un código nuevo</button>
+      <div class="msg" id="msgReenvio"></div>
+      <p><button class="enlace" id="btnVolverLeer1">Volver a leer los términos</button></p>
+    </div>
+  </section>
+
+  <!-- C · Condiciones y aceptación -->
+  <section id="pAceptar" class="oculto">
+    <div class="pasos" aria-hidden="true"><span class="hecho"></span><span class="hecho"></span><span class="hecho"></span><span></span></div>
+    <div class="tarjeta">
+      <h1>Tus condiciones (Anexo C)</h1>
+      <p class="suave">Comercio: <b id="axComercio"></b> · Correo verificado: <b id="axCorreo"></b></p>
+      <div id="axSelectorPlan" class="oculto">
+        <p><b>Elegí el plan</b> sobre el que querés ver y aceptar las condiciones:</p>
+        <div id="axOpcionesPlan"></div>
+      </div>
+      <div id="axDetalle"></div>
+      <p class="huella">Huella del Anexo C: <span id="axHuella"></span><br>Contrato: versión <span id="axVersion"></span> · <span id="axHuellaContrato"></span></p>
+      <div class="msg" id="msgPlan"></div>
+    </div>
+    <div class="tarjeta">
+      <h2>Aceptación</h2>
+      <label for="inNombre">Tu nombre y apellido</label>
+      <input type="text" id="inNombre" maxlength="80" autocomplete="off">
+      <p class="suave" id="axContactoTxt"></p>
+      <button class="secundario chico" id="btnUsarContacto">Usar el contacto registrado</button>
+      <p class="suave">El correo acredita el acceso a la casilla registrada del comercio; no comprueba tu identidad legal ni una representación.</p>
+      <label class="casilla" for="chkAcepto"><input type="checkbox" id="chkAcepto"> <span>Leí y acepto los términos y condiciones</span></label>
+      <button id="btnAceptar" disabled>Aceptar</button>
+      <p class="suave">Tu código vence en <span class="cuenta" id="cuentaAceptar"></span>.</p>
+      <div class="msg" id="msgAceptar"></div>
+      <p><button class="enlace" id="btnVolverLeer2">Volver a leer los términos</button></p>
+    </div>
+  </section>
+
+  <!-- D · Comprobando una operación incierta -->
+  <section id="pComprobando" class="oculto">
+    <div class="tarjeta">
+      <h1>Comprobando tu aceptación</h1>
+      <p>No recibimos una respuesta clara del servidor. Antes de cualquier otra cosa, comprobamos si tu aceptación quedó registrada. <b>Esta comprobación nunca registra una aceptación nueva.</b></p>
+      <div class="msg info" id="msgComprobando"></div>
+      <button id="btnComprobar">Comprobar de nuevo</button>
+    </div>
+  </section>
+
+  <!-- E · Constancia -->
+  <section id="pConstancia" class="oculto">
+    <div class="pasos" aria-hidden="true"><span class="hecho"></span><span class="hecho"></span><span class="hecho"></span><span class="hecho"></span></div>
+    <div class="tarjeta">
+      <h1>Constancia de aceptación</h1>
+      <div class="msg" id="msgConstancia"></div>
+      <div id="constDetalle"></div>
+    </div>
+    <div class="tarjeta no-imprimir" id="constAcciones">
+      <button id="btnImprimir">Imprimir</button>
+      <button class="secundario" id="btnDescargarConstancia">Descargar (.html)</button>
+      <button class="secundario" id="btnInicio">Volver al inicio</button>
+    </div>
+  </section>
+
+  <!-- F · Verificación pública -->
+  <section id="pVerificar" class="oculto">
+    <div class="tarjeta">
+      <h1>Verificación de una constancia</h1>
+      <p class="suave">Esta verificación muestra solo el resultado, el tipo de contrato, la versión, su huella, la fecha y el método. No muestra datos personales.</p>
+      <div id="verDetalle"></div>
+      <div class="msg" id="msgVerificar"></div>
+      <button class="secundario" id="btnVerReintentar" disabled>Verificar de nuevo</button>
+      <button class="secundario oculto" id="btnVerTexto">Leer el texto de esta versión</button>
+      <div class="contrato-texto oculto" id="verTexto"></div>
+    </div>
+  </section>
+
+  <!-- Olvidar en este dispositivo -->
+  <div class="tarjeta no-imprimir oculto" id="tarjetaOlvidar">
+    <h2>Este dispositivo</h2>
+    <p class="suave">Este navegador guarda solo lo necesario para recuperar tu aceptación y ver tu constancia (un identificador de pedido, una clave privada y el número de constancia). Si es un equipo compartido, podés borrarlo. La constancia sigue registrada en VAO y en el comprobante de tu correo.</p>
+    <button class="peligro chico" id="btnOlvidar">Olvidar en este dispositivo</button>
+    <div class="msg" id="msgOlvidar"></div>
+  </div>
+</main>
+<footer>VAO Sistemas · VAO POS · contrato.html V1 (STAGING)</footer>
+
+<script>
+'use strict';
+// ── Configuración ─────────────────────────────────────────────────────────────
+const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec'; // STAGING
+const VERSION_PAGINA = 'contrato.html V1';
+const TIEMPO_RESPUESTA_MS = 30000;
+const ESPERA_REENVIO_MS = 60000;
+const VIDA_CODIGO_MS = 15 * 60000;
+
+// ── Estado en memoria (el código y el Anexo C NUNCA se guardan en el dispositivo) ──
+const E = { prefijo: '', contrato: null, codigo: '', anexo: null, planElegido: '', ocupado: false, almacenOk: true, selectorPlan: false, constancia: null };
+
+// ── Utilidades ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function el(tag, props, hijos) {
+  const n = document.createElement(tag);
+  Object.entries(props || {}).forEach(([k, v]) => { if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else n.setAttribute(k, v); });
+  (hijos || []).forEach(h => n.appendChild(typeof h === 'string' ? document.createTextNode(h) : h));
+  return n;
+}
+function msg(id, tipo, texto) { const m = $(id); m.className = 'msg ' + (tipo || ''); m.textContent = texto || ''; }
+function mostrar(id) {
+  ['pCargando', 'pComercio', 'pError', 'pLeer', 'pCodigo', 'pAceptar', 'pComprobando', 'pConstancia', 'pVerificar'].forEach(s => $(s).classList.toggle('oculto', s !== id));
+  window.scrollTo(0, 0);
+  actualizarOlvidar(id);
+  tic();                                  // contadores al día apenas cambia la pantalla
+}
+function hex(bytes) { return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''); }
+function nuevoSid() {                                   // UUID versión 4 (lo exige el backend)
+  const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = hex(b); return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+}
+function nuevaClave() { return hex(crypto.getRandomValues(new Uint8Array(32))); }   // 64 caracteres
+function dispositivo() {
+  const tactil = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  return (tactil ? 'celular' : 'computadora') + ' · ' + VERSION_PAGINA;
+}
+function pesos(v, moneda) {
+  const n = Number(v);
+  if (v === '' || v === null || v === undefined || isNaN(n)) return '';
+  return (moneda && moneda !== 'ARS' ? moneda + ' ' : '$ ') + n.toLocaleString('es-AR');
+}
+function periodoTxt(p) { return ({ MENSUAL: 'por mes', ANUAL: 'por año' })[String(p || '').toUpperCase()] || String(p || '').toLowerCase(); }
+function mmss(ms) { ms = Math.max(0, ms); const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000); return m + ':' + String(s).padStart(2, '0'); }
+function descargar(nombre, contenido, tipo) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  const a = el('a', { href: url, download: nombre }); document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+
+// ── Almacenamiento del dispositivo: SOLO sid, clave privada, número de constancia, verificador y una marca de operación incierta ──
+function claveAlmacen() { return 'vao_contrato_' + E.prefijo; }
+function leerAlmacen() {
+  try { const v = localStorage.getItem(claveAlmacen()); return v ? JSON.parse(v) : {}; } catch (e) { E.almacenOk = false; return E._mem || {}; }
+}
+function guardarAlmacen(cambios) {
+  const d = Object.assign(leerAlmacen(), cambios);
+  Object.keys(d).forEach(k => { if (d[k] === null || d[k] === undefined) delete d[k]; });
+  E._mem = d;
+  try { localStorage.setItem(claveAlmacen(), JSON.stringify(d)); } catch (e) { E.almacenOk = false; $('avisoAlmacen').classList.remove('oculto'); }
+  return d;
+}
+function claveCliente() { let d = leerAlmacen(); if (!d.clave) d = guardarAlmacen({ clave: nuevaClave() }); return d.clave; }
+
+// ── Llamadas a la API ─────────────────────────────────────────────────────────
+// Resultado: el objeto del servidor, o { _incierto: true } si no hubo una respuesta clara (red, tiempo, respuesta ilegible).
+async function api(action, data, porGet) {
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), TIEMPO_RESPUESTA_MS);
+  try {
+    const r = porGet
+      ? await fetch(API_URL + '?action=' + encodeURIComponent(action) + '&data=' + encodeURIComponent(JSON.stringify(data || {})), { redirect: 'follow', signal: ctrl.signal })
+      : await fetch(API_URL, { method: 'POST', redirect: 'follow', signal: ctrl.signal, headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                               body: JSON.stringify({ action: action, data: data || {} }) });       // text/plain: sin consulta previa (CORS)
+    const txt = await r.text();
+    let j = null; try { j = JSON.parse(txt); } catch (e) { j = null; }
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return { _incierto: true, _motivo: 'respuesta inesperada' };
+    return j;
+  } catch (e) {
+    return { _incierto: true, _motivo: e && e.name === 'AbortError' ? 'tiempo de espera' : 'sin conexión' };
+  } finally { clearTimeout(t); }
+}
+async function conBloqueo(botones, fn) {         // un solo pedido a la vez: protege del doble toque
+  if (E.ocupado) return;
+  E.ocupado = true; const previos = botones.map(b => [b, b.disabled, b.textContent]);
+  botones.forEach(b => { b.disabled = true; }); if (botones[0]) botones[0].textContent = 'Un momento…';
+  try { await fn(); } finally { E.ocupado = false; previos.forEach(([b, d, t]) => { b.textContent = t; b.disabled = d; }); refrescarBotones(); }
+}
+
+// ── Inicio ───────────────────────────────────────────────────────────────────
+async function iniciar() {
+  try { localStorage.setItem('vao_contrato_prueba', '1'); localStorage.removeItem('vao_contrato_prueba'); }
+  catch (e) { E.almacenOk = false; $('avisoAlmacen').classList.remove('oculto'); }
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  if (h.get('v') || h.get('k')) return iniciarVerificacion(h.get('v') || '', h.get('k') || '');   // modo público: no lee el dispositivo
+  const p = String(new URLSearchParams(location.search).get('p') || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,10}$/.test(p)) { mostrar('pComercio'); return; }
+  E.prefijo = p;
+  await cargarContrato();
+}
+async function cargarContrato() {
+  mostrar('pCargando');
+  const r = await api('getContrato', {}, true);
+  if (r._incierto) return error('Sin conexión', 'No pudimos cargar el contrato (' + r._motivo + '). Revisá tu conexión y tocá Reintentar.');
+  if (r.error) return error(r.alterado ? 'Contrato en revisión' : 'Contrato no disponible', r.error);
+  if (r.ambito !== 'PRUEBA' || r.sinValorLegal !== true) return error('Contrato no admitido', 'Esta página de pruebas solo funciona con contratos de PRUEBA (sin valor legal).');
+  E.contrato = r;
+  $('leerComercio').textContent = E.prefijo; $('leerVersion').textContent = r.version; $('leerHuella').textContent = r.hash;
+  $('textoContrato').textContent = r.texto;
+  const d = leerAlmacen();
+  if (d.pendiente) return comprobarIncierto(true);          // hay una aceptación incierta: primero se comprueba (consulta segura)
+  irALeer();
+}
+function irALeer() {
+  const d = leerAlmacen();
+  $('tarjetaYaAcepto').classList.toggle('oculto', !d.aceptacionId);
+  $('tarjetaCodigoEnCurso').classList.toggle('oculto', !(d.sid && d.codigoDesde && Date.now() - d.codigoDesde < VIDA_CODIGO_MS));
+  msg('msgLeer', '', '');
+  mostrar('pLeer');
+}
+function error(titulo, texto) { $('errTitulo').textContent = titulo; $('errTexto').textContent = texto; mostrar('pError'); }
+
+// ── B · Pedir / reenviar código ─────────────────────────────────────────────────
+async function pedirCodigo(reenvio) {
+  if (leerAlmacen().pendiente) { msg('msgReenvio', 'aviso', 'Primero hay que comprobar tu aceptación anterior.'); return; }
+  const primero = reenvio ? $('btnReenviar') : ($('pLeer').classList.contains('oculto') ? $('btnCodigoNuevo') : $('btnPedirCodigo'));
+  const btns = [primero].concat([$('btnReenviar'), $('btnCodigoNuevo'), $('btnPedirCodigo')].filter(b => b !== primero));
+  await conBloqueo(btns, async () => {
+    let d = leerAlmacen();
+    if (!reenvio || !d.sid) d = guardarAlmacen({ sid: nuevoSid(), codigoDesde: null });    // pedido nuevo = identificador nuevo, guardado ANTES de llamar
+    const sid = d.sid;
+    guardarAlmacen({ ultimoEnvio: Date.now() });                                            // los 60 s cuentan desde el intento
+    E.codigo = ''; E.anexo = null; $('inCodigo').value = '';
+    const r = await api('contratoSolicitarCodigo', { prefijo: E.prefijo, solicitudId: sid });
+    mostrar('pCodigo'); msg('msgCodigo', '', ''); msg('msgReenvio', '', '');
+    if (r._incierto) {
+      guardarAlmacen({ codigoDesde: Date.now() });
+      msg('msgEnvio', 'aviso', 'No pudimos confirmar el envío (' + r._motivo + '). Si te llegó el código, ingresalo. Si no llega en unos minutos, tocá «Reenviar el código».');
+    } else if (r.success) {
+      if (!r.yaEnviado || !d.codigoDesde) guardarAlmacen({ codigoDesde: Date.now() });
+      msg('msgEnvio', 'info', r.mensaje || 'Te enviamos un código.');
+    } else if (r.pedirNuevo) {
+      guardarAlmacen({ codigoDesde: null });
+      msg('msgEnvio', 'aviso', r.error + ' Tocá «Pedir un código nuevo».');
+    } else if (r.limite) {
+      msg('msgEnvio', 'error', r.error);
+    } else {
+      msg('msgEnvio', 'error', r.error || 'No se pudo pedir el código.');
+    }
+    $('inCodigo').focus();
+  });
+}
+
+// ── B → C · Validar el código y leer el Anexo C (no gasta el código) ───────────
+async function continuarCodigo() {
+  const cod = $('inCodigo').value.replace(/\D/g, '');
+  if (cod.length !== 6) { msg('msgCodigo', 'error', 'El código tiene 6 números.'); return; }
+  await conBloqueo([$('btnContinuarCodigo')], async () => {
+    E.codigo = cod; E.planElegido = ''; E.selectorPlan = false;
+    await leerAnexo('');
+  });
+}
+async function leerAnexo(plan) {
+  const d = leerAlmacen();
+  const r = await api('getAnexoC', Object.assign({ prefijo: E.prefijo, solicitudId: d.sid, codigo: E.codigo }, plan ? { plan: plan } : {}));
+  const destino = $('pAceptar').classList.contains('oculto') ? 'msgCodigo' : 'msgPlan';
+  if (r._incierto) { msg(destino, 'error', 'No pudimos comprobar el código (' + r._motivo + '). Probá de nuevo.'); return; }
+  if (r.elegirPlan) {                                         // comercio en PRUEBA: elige el plan
+    E.selectorPlan = true; E.anexo = null; armarSelectorPlan(r.planes || []);
+    $('axComercio').textContent = E.prefijo; $('axCorreo').textContent = '—';
+    $('axDetalle').textContent = ''; $('axHuella').textContent = '—'; $('axVersion').textContent = E.contrato.version; $('axHuellaContrato').textContent = E.contrato.hash;
+    $('axContactoTxt').textContent = ''; mostrarAceptar(); msg('msgPlan', 'info', 'Elegí un plan para ver sus condiciones.'); return;
+  }
+  if (!r.success) {
+    E.anexo = null;
+    if (r.codigoIncorrecto) msg(destino, 'error', r.error);
+    else if (r.bloqueado || r.vencido || r.codigoInvalido) { E.codigo = ''; msg('msgCodigo', 'error', r.error); mostrar('pCodigo'); }
+    else msg(destino, 'error', r.error || 'No se pudo leer el Anexo C.');
+    return;
+  }
+  if (r.contrato.ambito !== 'PRUEBA') { error('Contrato no admitido', 'Esta página de pruebas solo funciona con contratos de PRUEBA.'); return; }
+  E.anexo = r; E.planElegido = r.anexoC.plan;
+  pintarAnexo(r);
+  mostrarAceptar();
+  msg('msgPlan', '', '');
+}
+function armarSelectorPlan(planes) {
+  const cont = $('axOpcionesPlan'); cont.textContent = '';
+  planes.forEach(p => {
+    const inp = el('input', { type: 'radio', name: 'plan', value: p.codigo }); if (p.codigo === E.planElegido) inp.checked = true;
+    inp.addEventListener('change', () => conBloqueo([], async () => { E.planElegido = p.codigo; await leerAnexo(p.codigo); }));
+    cont.appendChild(el('label', { class: 'opcion-plan' }, [inp, p.nombre]));
+  });
+  $('axSelectorPlan').classList.toggle('oculto', !planes.length);
+}
+function fila(k, v, clase) { return el('div', { class: 'fila' + (clase ? ' ' + clase : '') }, [el('span', { class: 'k', text: k }), el('span', { class: 'v', text: v })]); }
+function bloqueAnexo(ax) {
+  const f = document.createDocumentFragment();
+  f.appendChild(fila('Plan', ax.planNombre || ax.plan));
+  f.appendChild(fila('Precio regular', (pesos(ax.precioRegular, ax.moneda) || '—') + ' ' + periodoTxt(ax.periodo), 'precio'));
+  f.appendChild(fila('Precio de lanzamiento publicado', ax.precioLanzamiento ? pesos(ax.precioLanzamiento, ax.moneda) + ' ' + periodoTxt(ax.periodo) : 'No hay'));
+  const pr = ax.promocionPublicada;
+  f.appendChild(fila('Promoción publicada', pr ? (pr.nombre || 'Promoción') + (pr.meses ? ' · ' + pr.meses + (pr.meses === 1 ? ' mes' : ' meses') : '') : 'No hay una promoción publicada para este plan'));
+  if (pr && pr.condiciones) f.appendChild(el('p', { class: 'suave', text: 'Condiciones de la promoción: ' + pr.condiciones }));
+  if (pr) f.appendChild(el('p', { class: 'suave', text: 'Que una promoción esté publicada no reserva un cupo ni asegura que se aplique.' }));
+  if (Array.isArray(ax.modulos) && ax.modulos.length) {
+    f.appendChild(el('p', { class: 'suave', text: 'Incluye:' }));
+    f.appendChild(el('ul', { class: 'modulos' }, ax.modulos.map(m => el('li', { text: m }))));
+  }
+  if (ax.nota) f.appendChild(el('p', { class: 'suave', text: ax.nota }));
+  return f;
+}
+function pintarAnexo(r) {
+  $('axComercio').textContent = r.negocio + ' (' + r.prefijo + ')';
+  $('axCorreo').textContent = r.correo || '—';
+  const det = $('axDetalle'); det.textContent = ''; det.appendChild(bloqueAnexo(r.anexoC));
+  $('axHuella').textContent = r.anexoHash; $('axVersion').textContent = r.contrato.version; $('axHuellaContrato').textContent = r.contrato.hash;
+  $('axContactoTxt').textContent = r.contactoRegistrado ? 'Contacto registrado del comercio: ' + r.contactoRegistrado : '';
+  $('btnUsarContacto').classList.toggle('oculto', !r.contactoRegistrado);
+  if (E.selectorPlan) armarSelectorPlan(r.planes || []); else $('axSelectorPlan').classList.add('oculto');
+}
+function mostrarAceptar() {
+  if ($('pAceptar').classList.contains('oculto')) { $('inNombre').value = ''; $('chkAcepto').checked = false; msg('msgAceptar', '', ''); }  // nombre vacío y casilla SIEMPRE desmarcada al llegar
+  mostrar('pAceptar'); refrescarBotones();
+}
+
+// ── C · Aceptar (el ÚNICO lugar donde sale una aceptación completa) ─────────────
+const ERRORES_DEFINITIVOS = r => !!(r.codigoIncorrecto || r.codigoInvalido || r.vencido || r.bloqueado || r.anexoCambio || r.contratoCambio || r.correoCambio ||
+  r.campo || r.ocupado || r.elegirPlan || r.alterado || r.sinContrato ||
+  /tenés que marcar que leíste|Código de comercio inválido|Falta la clave de este navegador/.test(String(r.error || '')));
+async function aceptar() {
+  if (!$('chkAcepto').checked) { msg('msgAceptar', 'error', 'Para aceptar tenés que marcar «Leí y acepto los términos y condiciones».'); return; }
+  const nombre = $('inNombre').value.replace(/\s+/g, ' ').trim();
+  if (nombre.length < 3) { msg('msgAceptar', 'error', 'Escribí tu nombre y apellido.'); return; }
+  if (!E.anexo || !E.codigo) { msg('msgAceptar', 'error', 'Volvé a ingresar el código.'); return; }
+  if (leerAlmacen().pendiente) { comprobarIncierto(false); return; }
+  let siguiente = null;
+  await conBloqueo([$('btnAceptar'), $('btnUsarContacto')], async () => {
+    const d = leerAlmacen(), clave = claveCliente();
+    const datos = { prefijo: E.prefijo, solicitudId: d.sid, codigo: E.codigo, contratoVersion: E.anexo.contrato.version, contratoHash: E.anexo.contrato.hash,
+                    anexoHash: E.anexo.anexoHash, plan: E.anexo.anexoC.plan, firmante: nombre, confirmo: true, claveCliente: clave, dispositivo: dispositivo() };
+    guardarAlmacen({ pendiente: { sid: d.sid, desde: Date.now() } });        // ANTES de enviar: si se corta, al volver se comprueba primero
+    const r = await api('contratoAceptar', datos);
+    if (r.success && r.aceptacionId) { siguiente = () => constanciaObtenida(r); return; }
+    if (!r._incierto && r.error && ERRORES_DEFINITIVOS(r)) {                    // el servidor contestó claramente: no registró
+      guardarAlmacen({ pendiente: null });
+      $('chkAcepto').checked = false; refrescarBotones();
+      if (r.vencido || r.bloqueado || r.codigoInvalido) { E.codigo = ''; E.anexo = null; mostrar('pCodigo'); msg('msgCodigo', 'error', r.error); return; }
+      msg('msgAceptar', 'error', r.error + (r.anexoCambio || r.contratoCambio ? ' (tocá «Volver a leer los términos»)' : ''));
+      return;
+    }
+    // red, tiempo agotado, respuesta ilegible o un error inesperado: NO se sabe si quedó registrada
+    siguiente = () => comprobarIncierto(false);
+  });
+  if (siguiente) await siguiente();
+}
+async function constanciaObtenida(r) {
+  const cambios = { aceptacionId: r.aceptacionId, pendiente: null, codigoDesde: null };
+  if (r.verificador) cambios.verificador = r.verificador;
+  guardarAlmacen(cambios);
+  E.codigo = ''; E.anexo = null;
+  await verConstancia(r);
+}
+
+// ── D · Operación incierta: SOLO consulta segura (sin código ni "confirmo": nunca registra) ──
+async function comprobarIncierto(alCargar) {
+  mostrar('pComprobando');
+  msg('msgComprobando', 'info', 'Comprobando…');
+  let siguiente = null;
+  await conBloqueo([$('btnComprobar')], async () => {
+    const d = leerAlmacen();
+    const sid = d.pendiente && d.pendiente.sid;
+    if (!sid || !d.clave) { msg('msgComprobando', 'error', 'No encontramos los datos de la operación en este dispositivo. Revisá si te llegó la constancia por correo.'); return; }
+    const r = await api('contratoAceptar', { prefijo: E.prefijo, solicitudId: sid, claveCliente: d.clave });   // consulta segura
+    if (r.success && r.aceptacionId) { siguiente = () => constanciaObtenida(r); return; }   // estaba registrada: se recupera sin duplicar
+    if (!r._incierto && /tenés que marcar que leíste/.test(String(r.error || ''))) {
+      // Respuesta CLARA del servidor: con ese pedido no hay ninguna aceptación registrada.
+      guardarAlmacen({ pendiente: null });
+      if (E.anexo && E.codigo && !alCargar) {
+        $('chkAcepto').checked = false; mostrar('pAceptar'); refrescarBotones();
+        msg('msgAceptar', 'aviso', 'Tu aceptación NO quedó registrada. Si querés aceptar, revisá los datos, marcá la casilla y tocá «Aceptar» de nuevo.');
+      } else {
+        E.codigo = ''; E.anexo = null; mostrar('pCodigo');
+        msg('msgEnvio', 'aviso', 'Tu aceptación anterior NO quedó registrada. Si todavía tenés un código vigente, ingresalo; si no, pedí uno nuevo.');
+      }
+      return;
+    }
+    if (!r._incierto && /ya fue utilizada/.test(String(r.error || ''))) {
+      guardarAlmacen({ pendiente: null });
+      msg('msgComprobando', 'error', 'Ese pedido ya se usó desde otro navegador. Revisá el comprobante en tu correo antes de volver a aceptar.');
+      $('btnComprobar').classList.add('oculto');
+      setTimeout(() => { $('btnComprobar').classList.remove('oculto'); irALeer(); }, 6000);
+      return;
+    }
+    // Sin respuesta clara (red, ocupado, cualquier otra cosa): se queda acá. Nunca se asume "no registrada".
+    msg('msgComprobando', 'aviso', r.ocupado ? 'El sistema está ocupado. Esperá unos segundos y tocá «Comprobar de nuevo».'
+      : 'Todavía no pudimos comprobarlo' + (r._motivo ? ' (' + r._motivo + ')' : '') + '. Tocá «Comprobar de nuevo». Mientras tanto no se puede pedir otro código ni aceptar de nuevo.');
+  });
+  if (siguiente) await siguiente();
+}
+
+// ── E · Constancia ───────────────────────────────────────────────────────────
+async function verConstancia(desdeAceptar) {
+  mostrar('pConstancia'); msg('msgConstancia', 'info', 'Cargando la constancia…'); $('constDetalle').textContent = '';
+  await conBloqueo([$('btnImprimir'), $('btnDescargarConstancia')], async () => {
+    const d = leerAlmacen();
+    if (!d.aceptacionId || !d.clave) { msg('msgConstancia', 'error', 'Este dispositivo no tiene una constancia guardada.'); return; }
+    const r = await api('getConstancia', { aceptacionId: d.aceptacionId, claveCliente: d.clave });
+    if (r._incierto) { msg('msgConstancia', 'error', 'No pudimos cargar la constancia (' + r._motivo + '). Tocá «Volver al inicio» y probá de nuevo.'); return; }
+    if (!r.success) { msg('msgConstancia', 'error', (r.error || 'No se pudo mostrar la constancia.') + ' La constancia también está en el comprobante que te enviamos por correo.'); return; }
+    E.constancia = r;
+    const okTxt = desdeAceptar && desdeAceptar.yaRegistrada ? 'Tu aceptación ya estaba registrada (no se duplicó).' :
+                  desdeAceptar ? (desdeAceptar.comprobante === 'PENDIENTE' ? 'Aceptación registrada. No pudimos enviarte el comprobante por correo: VAO Sistemas lo puede reenviar.' : 'Aceptación registrada. Te enviamos el comprobante por correo.') : '';
+    msg('msgConstancia', r.resultado === 'VÁLIDA' ? 'ok' : 'error', r.resultado === 'VÁLIDA' ? (okTxt || 'Constancia íntegra.') : 'Atención: esta constancia aparece ALTERADA. Avisá a VAO Sistemas.');
+    pintarConstancia(r, d.verificador);
+  });
+}
+function caracterTxt(r) {
+  if (r.caracter === 'TITULAR') return 'Declaró actuar como titular';
+  if (r.caracter === 'REPRESENTANTE') return 'Declaró actuar en representación (' + (r.caracterDetalle || '') + ')';
+  return 'No declarado';
+}
+function pintarConstancia(r, verificador) {
+  const c = $('constDetalle'); c.textContent = '';
+  c.appendChild(el('p', { class: 'grande ' + (r.resultado === 'VÁLIDA' ? 'valida' : 'alterada'), text: r.resultado }));
+  if (r.sinValorLegal) c.appendChild(el('div', { class: 'msg aviso', text: 'CONTRATO DE PRUEBA — SIN VALOR LEGAL. Esta aceptación no habilita pagos y no cambia tu plan ni tu vigencia.' }));
+  [['Número de constancia', r.aceptacionId], ['Fecha', r.fecha + (r.fechaUTC ? ' · ' + r.fechaUTC : '')], ['Comercio', r.negocio + ' (' + r.prefijo + ')'],
+   ['Aceptado por (nombre declarado)', r.firmanteDeclarado], ['Carácter', caracterTxt(r)], ['Contacto registrado', r.contactoRegistrado || '—'],
+   ['Correo verificado', r.correo || '—'], ['Método', 'Casilla «Leí y acepto» + código enviado al correo registrado'],
+   ['Contrato', 'versión ' + r.contratoVersion + (r.sinValorLegal ? ' · PRUEBA — SIN VALOR LEGAL' : '')],
+   ['Comprobante por correo', r.comprobante === 'ENVIADO' ? 'Enviado' : r.comprobante === 'PENDIENTE' ? 'Pendiente de envío' : String(r.comprobante || '—')]]
+    .forEach(([k, v]) => c.appendChild(fila(k, v)));
+  c.appendChild(el('p', { class: 'huella', text: 'Huella del contrato: ' + r.contratoHash }));
+  if (r.anexoC) { c.appendChild(el('h2', { text: 'Condiciones económicas aceptadas (Anexo C)' })); c.appendChild(bloqueAnexo(r.anexoC)); }
+  c.appendChild(el('p', { class: 'huella', text: 'Huella del Anexo C: ' + r.anexoHash }));
+  c.appendChild(el('p', { class: 'suave', text: 'El correo acredita el acceso a la casilla registrada del comercio; no comprueba la identidad legal de la persona ni una representación.' }));
+  if (verificador) {
+    const url = location.origin + location.pathname + '#v=' + r.aceptacionId + '&k=' + verificador;
+    c.appendChild(el('p', { class: 'suave' }, ['Enlace de verificación pública (muestra solo el resultado, la versión, la huella y la fecha): ', el('span', { class: 'huella', text: url })]));
+  } else {
+    c.appendChild(el('p', { class: 'suave', text: 'El enlace de verificación pública está en el comprobante que te enviamos por correo.' }));
+  }
+}
+function descargarConstancia() {
+  const r = E.constancia; if (!r) return;
+  const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Constancia VAO POS ' + escHtml(r.aceptacionId) + '</title>' +
+    '<style>body{font-family:system-ui,Arial,sans-serif;max-width:720px;margin:24px auto;padding:0 16px;color:#16263D}' +
+    '.franja{border:2px solid #000;padding:8px;text-align:center;font-weight:800}td{padding:6px 8px;border-bottom:1px solid #ddd;vertical-align:top}' +
+    'td:first-child{color:#555;width:42%}.h{font-family:monospace;font-size:12px;word-break:break-all}</style></head><body>' +
+    (r.sinValorLegal ? '<div class="franja">CONTRATO DE PRUEBA — SIN VALOR LEGAL. No habilita pagos ni cambia el plan.</div>' : '') +
+    '<h1>Constancia de aceptación — VAO POS</h1><p><b>Resultado al descargar: ' + escHtml(r.resultado) + '</b></p><table>' +
+    [['Número de constancia', r.aceptacionId], ['Fecha', r.fecha + ' · ' + (r.fechaUTC || '')], ['Comercio', r.negocio + ' (' + r.prefijo + ')'],
+     ['Aceptado por (nombre declarado)', r.firmanteDeclarado], ['Carácter', caracterTxt(r)], ['Contacto registrado', r.contactoRegistrado || '—'],
+     ['Correo verificado', r.correo || '—'], ['Método', 'Casilla «Leí y acepto» + código enviado al correo registrado'], ['Contrato', 'versión ' + r.contratoVersion],
+     ['Plan', r.anexoC ? (r.anexoC.planNombre || r.anexoC.plan) : ''], ['Precio regular', r.anexoC ? pesos(r.anexoC.precioRegular, r.anexoC.moneda) + ' ' + periodoTxt(r.anexoC.periodo) : ''],
+     ['Precio de lanzamiento publicado', r.anexoC && r.anexoC.precioLanzamiento ? pesos(r.anexoC.precioLanzamiento, r.anexoC.moneda) : 'No hay'],
+     ['Promoción publicada', r.anexoC && r.anexoC.promocionPublicada ? (r.anexoC.promocionPublicada.nombre || 'Promoción') + ' (no reserva cupo)' : 'No hay']]
+      .map(([k, v]) => '<tr><td>' + escHtml(k) + '</td><td>' + escHtml(v) + '</td></tr>').join('') +
+    '</table><p class="h">Huella del contrato: ' + escHtml(r.contratoHash) + '<br>Huella del Anexo C: ' + escHtml(r.anexoHash) + '</p>' +
+    '<p>El correo acredita el acceso a la casilla registrada del comercio; no comprueba la identidad legal de la persona ni una representación.</p>' +
+    '<p style="color:#555">Descargado el ' + escHtml(new Date().toLocaleString('es-AR')) + ' desde ' + escHtml(VERSION_PAGINA) + '.</p></body></html>';
+  descargar('constancia-vao-' + r.prefijo + '-' + String(r.aceptacionId).slice(0, 8) + '.html', html, 'text/html;charset=utf-8');
+}
+
+// ── F · Verificación pública (no lee ni escribe nada del dispositivo) ──────────
+let VER = { id: '', k: '' };
+async function iniciarVerificacion(id, k) {
+  VER = { id: String(id).toLowerCase(), k: String(k).toLowerCase() };
+  $('subtitulo').textContent = 'Verificación de constancia';
+  mostrar('pVerificar');
+  $('tarjetaOlvidar').classList.add('oculto');
+  await verificarAhora();
+}
+async function verificarAhora() {
+  const det = $('verDetalle'); det.textContent = ''; msg('msgVerificar', 'info', 'Verificando…');
+  $('btnVerReintentar').disabled = true; $('btnVerTexto').classList.add('oculto'); $('verTexto').classList.add('oculto');
+  if (!/^[0-9a-f-]{36}$/.test(VER.id) || !/^[0-9a-f]{64}$/.test(VER.k)) { msg('msgVerificar', 'error', 'El enlace de verificación está incompleto o mal copiado.'); return; }
+  const r = await api('verificarConstancia', { aceptacionId: VER.id, verificador: VER.k });
+  if (r._incierto) { msg('msgVerificar', 'error', 'No pudimos verificar (' + r._motivo + '). Probá de nuevo.'); $('btnVerReintentar').disabled = false; return; }
+  if (!r.success) { msg('msgVerificar', 'error', r.error || 'Constancia no encontrada o datos incorrectos.'); return; }
+  msg('msgVerificar', '', '');
+  det.appendChild(el('p', { class: 'grande ' + (r.resultado === 'VÁLIDA' ? 'valida' : 'alterada'), text: r.resultado }));
+  // SOLO los 7 datos públicos que devuelve el servidor
+  [['Tipo de contrato', r.ambito], ['Registro', r.tipo], ['Versión del contrato', r.contratoVersion], ['Fecha', r.fecha], ['Método', r.metodo]]
+    .forEach(([k, v]) => det.appendChild(fila(k, v)));
+  det.appendChild(el('p', { class: 'huella', text: 'Huella del contrato: ' + r.contratoHash }));
+  VER.version = r.contratoVersion;
+  $('btnVerTexto').classList.remove('oculto');
+}
+async function verTextoVersion() {
+  await conBloqueo([$('btnVerTexto')], async () => {
+    const r = await api('getContrato', { version: VER.version }, true);
+    const t = $('verTexto'); t.classList.remove('oculto');
+    t.textContent = r._incierto ? 'No se pudo cargar el texto (' + r._motivo + ').' : r.error ? r.error : r.texto;
+  });
+}
+
+// ── Olvidar en este dispositivo ───────────────────────────────────────────────
+let olvidarArmado = 0;
+function actualizarOlvidar(pantalla) {
+  const d = E.prefijo ? leerAlmacen() : {};
+  const hay = !!(d.sid || d.clave || d.aceptacionId);
+  $('tarjetaOlvidar').classList.toggle('oculto', !E.prefijo || !hay || pantalla === 'pVerificar' || pantalla === 'pCargando');
+  refrescarBotones();
+}
+function olvidar() {
+  if (leerAlmacen().pendiente) { msg('msgOlvidar', 'error', 'Hay una aceptación sin comprobar. Primero comprobala.'); return; }
+  if (!olvidarArmado || Date.now() - olvidarArmado > 8000) {
+    olvidarArmado = Date.now(); $('btnOlvidar').textContent = 'Tocá de nuevo para confirmar';
+    msg('msgOlvidar', 'aviso', 'Se borran de este navegador el pedido, la clave privada y el número de constancia. Después solo vas a tener el comprobante de tu correo.');
+    return;
+  }
+  olvidarArmado = 0;
+  try { localStorage.removeItem(claveAlmacen()); } catch (e) {}
+  E._mem = {}; E.codigo = ''; E.anexo = null; E.constancia = null;
+  $('btnOlvidar').textContent = 'Olvidar en este dispositivo';
+  msg('msgOlvidar', 'ok', 'Listo: este dispositivo ya no guarda datos de tu aceptación.');
+  irALeer(); $('tarjetaOlvidar').classList.remove('oculto');
+}
+
+// ── Botones y contadores ──────────────────────────────────────────────────────
+function refrescarBotones() {
+  const d = E.prefijo ? leerAlmacen() : {};
+  const pend = !!d.pendiente;
+  const nombreOk = $('inNombre').value.replace(/\s+/g, ' ').trim().length >= 3;
+  $('btnAceptar').disabled = E.ocupado || !($('chkAcepto').checked && nombreOk && E.anexo && E.codigo) || pend;
+  $('btnCodigoNuevo').disabled = E.ocupado || pend;
+  $('btnPedirCodigo').disabled = E.ocupado || pend;
+  const falta = d.ultimoEnvio ? ESPERA_REENVIO_MS - (Date.now() - d.ultimoEnvio) : 0;
+  $('btnReenviar').disabled = E.ocupado || pend || !d.sid || falta > 0;
+  $('btnReenviar').textContent = falta > 0 ? 'Reenviar el código (en ' + Math.ceil(falta / 1000) + ' s)' : 'Reenviar el código';
+  $('btnOlvidar').disabled = E.ocupado || pend;
+}
+function tic() {
+  if (!E.prefijo) return;
+  const d = leerAlmacen();
+  const resta = d.codigoDesde ? VIDA_CODIGO_MS - (Date.now() - d.codigoDesde) : 0;
+  $('cuentaCodigo').textContent = d.codigoDesde ? (resta > 0 ? 'Vence en aprox. ' + mmss(resta) + '.' : 'Probablemente ya venció: pedí uno nuevo.') : '';
+  $('cuentaAceptar').textContent = resta > 0 ? mmss(resta) : 'poco tiempo o ya venció';
+  if (!E.ocupado && !$('pCodigo').classList.contains('oculto')) refrescarBotones();
+}
+
+// ── Eventos ───────────────────────────────────────────────────────────────────
+$('btnComercio').addEventListener('click', () => {
+  const p = $('inComercio').value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,10}$/.test(p)) { msg('msgComercio', 'error', 'Revisá el código de comercio.'); return; }
+  location.search = '?p=' + encodeURIComponent(p);
+});
+$('btnErrReintentar').addEventListener('click', () => { if (E.prefijo) cargarContrato(); else location.reload(); });
+$('btnPedirCodigo').addEventListener('click', () => pedirCodigo(false));
+$('btnCodigoNuevo').addEventListener('click', () => pedirCodigo(false));
+$('btnReenviar').addEventListener('click', () => pedirCodigo(true));
+$('btnIrACodigo').addEventListener('click', () => { mostrar('pCodigo'); msg('msgEnvio', 'info', 'Ingresá el código que te enviamos por correo.'); msg('msgCodigo', '', ''); $('inCodigo').focus(); });
+$('btnContinuarCodigo').addEventListener('click', continuarCodigo);
+$('inCodigo').addEventListener('input', () => { $('inCodigo').value = $('inCodigo').value.replace(/\D/g, '').slice(0, 6); });
+$('inCodigo').addEventListener('keydown', e => { if (e.key === 'Enter') continuarCodigo(); });
+$('btnVolverLeer1').addEventListener('click', irALeer);
+$('btnVolverLeer2').addEventListener('click', irALeer);
+$('btnUsarContacto').addEventListener('click', () => { if (E.anexo && E.anexo.contactoRegistrado) { $('inNombre').value = E.anexo.contactoRegistrado; refrescarBotones(); } });
+$('inNombre').addEventListener('input', refrescarBotones);
+$('chkAcepto').addEventListener('change', refrescarBotones);
+$('btnAceptar').addEventListener('click', aceptar);
+$('btnComprobar').addEventListener('click', () => comprobarIncierto(false));
+$('btnVerConstanciaGuardada').addEventListener('click', () => verConstancia(null));
+$('btnImprimir').addEventListener('click', () => window.print());
+$('btnDescargarConstancia').addEventListener('click', descargarConstancia);
+$('btnInicio').addEventListener('click', irALeer);
+$('btnDescargarTexto').addEventListener('click', () => { if (E.contrato) descargar('contrato-vao-' + E.contrato.version + '.txt', E.contrato.texto + '\n\nHuella: ' + E.contrato.hash + '\n', 'text/plain;charset=utf-8'); });
+$('btnVerReintentar').addEventListener('click', verificarAhora);
+$('btnVerTexto').addEventListener('click', verTextoVersion);
+$('btnOlvidar').addEventListener('click', olvidar);
+setInterval(tic, 1000);
+iniciar();
+</script>
+</body>
+</html>
