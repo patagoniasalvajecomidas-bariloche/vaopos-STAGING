@@ -7,7 +7,8 @@
 <meta name="referrer" content="no-referrer">
 <title>VAO POS · Contrato del servicio</title>
 <!--
-  VAO POS MULTIHOJA — contrato.html V1 (STAGING) — 21/10/2026
+  VAO POS MULTIHOJA — contrato.html V1.1 (STAGING) — 23/10/2026
+  V1.1: solo cambia la IMPRESIÓN (@media print): la constancia entra en una hoja A4. Pantalla y JavaScript iguales a V1.
   Backend requerido: v039 (contratoSolicitarCodigo, getAnexoC, contratoAceptar, getConstancia, verificarConstancia, getContrato).
   Reglas de esta página:
    · Nunca registra una aceptación sola: contratoAceptar COMPLETO sale solo al tocar "Aceptar" con la casilla marcada.
@@ -82,13 +83,27 @@ ul.modulos { margin: 4px 0 0; padding-left: 20px; }
 footer { text-align: center; color: var(--suave); font-size: .82rem; padding: 0 16px 30px; }
 @media (min-width: 700px) { body { font-size: 17.5px; } main { padding-top: 22px; } }
 @media print {
-  @page { size: A4; margin: 14mm; }
-  body { background: #fff; font-size: 12pt; }
+  /* V1.1: antes la tarjeta de la constancia no se podía partir (break-inside: avoid) y era más alta que una hoja:
+     quedaba la página 1 con la franja sola y la constancia en las páginas 2 y 3. Ahora se compacta para A4,
+     la tarjeta se puede partir y lo que nunca se corta es cada fila. */
+  @page { size: A4; margin: 10mm 12mm; }
+  body { background: #fff; font-size: 9.5pt; line-height: 1.3; }
   header, footer, button, .no-imprimir, .pasos { display: none !important; }
-  .franja { position: static; border: 2px solid #000; background: #fff; color: #000; }
+  .franja { position: static; border: 2px solid #000; background: #fff; color: #000; padding: 3pt 6pt; font-size: 9.5pt; }
+  .franja small { font-size: 8pt; }
   main { max-width: none; padding: 0; }
   section:not(#pConstancia) { display: none !important; }
-  .tarjeta { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+  .tarjeta { box-shadow: none; border: 0; border-radius: 0; padding: 0; margin: 0; break-inside: auto; }
+  #pConstancia h1 { font-size: 13pt; margin: 4pt 0 2pt; }
+  #pConstancia h2 { font-size: 10.5pt; margin: 5pt 0 1pt; break-after: avoid; }
+  #pConstancia .msg { padding: 3pt 6pt; margin: 3pt 0; border-radius: 4pt; break-inside: avoid; }
+  #pConstancia .grande { font-size: 15pt; margin: 2pt 0; }
+  #pConstancia .fila { padding: 1.5pt 0; break-inside: avoid; }
+  #pConstancia .precio .v { font-size: inherit; }
+  #pConstancia p { margin: 2pt 0; }
+  #pConstancia .suave { font-size: 8.5pt; }
+  #pConstancia .huella { font-size: 7.5pt; }
+  #pConstancia ul.modulos { margin: 0; break-inside: avoid; }
 }
 </style>
 </head>
