@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- VAO POS · Admin V14 (STAGING) · 23/10/2026 · V14: ventana «📄 Contratos», SOLO CONSULTA (estadoContratos + verificarIntegridadContratos + clientesCargados). -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>[STAGING] VAO Admin · SmartPOS</title>
@@ -621,6 +622,42 @@ body {
         white-space: normal;
     }
 }
+/* ── V14: 📄 Contratos (solo consulta) ── */
+.ctr-franja { background:#FFD54F; color:#3E2A00; border:2px solid #C49000; border-radius:12px; padding:8px 12px; font-weight:800; font-size:0.86rem; text-align:center; margin-bottom:12px; }
+.ctr-franja small { display:block; font-weight:600; font-size:0.76rem; }
+.ctr-aviso { border-radius:10px; padding:9px 12px; margin:0 0 10px; font-size:0.82rem; font-weight:600; }
+.ctr-aviso.alerta { background:#FFF3E0; color:#8A4B00; }
+.ctr-aviso.error { background:#FFEBEE; color:#B71C1C; }
+.ctr-aviso.info { background:#E3F2FD; color:#0D47A1; }
+.ctr-resumen { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.ctr-num { background:#F5F8FC; border-radius:12px; padding:10px 6px; text-align:center; }
+.ctr-num b { display:block; font-size:1.45rem; color:var(--azul-dark); }
+.ctr-num span { font-size:0.72rem; color:var(--gris); font-weight:700; }
+.ctr-num.prob b { color:#B71C1C; }
+.ctr-bloque { border:1px solid #E1E8F0; border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+.ctr-bloque h4 { font-size:0.9rem; color:var(--azul-dark); margin-bottom:6px; }
+.ctr-fila { display:flex; justify-content:space-between; gap:10px; font-size:0.82rem; padding:3px 0; border-bottom:1px solid #F0F3F7; }
+.ctr-fila:last-child { border-bottom:0; }
+.ctr-fila .k { color:var(--gris); }
+.ctr-fila .v { font-weight:700; text-align:right; overflow-wrap:anywhere; }
+.ctr-insignia { display:inline-block; border-radius:8px; padding:1px 7px; font-size:0.72rem; font-weight:800; }
+.ctr-insignia.prueba { background:#FFD54F; color:#3E2A00; }
+.ctr-insignia.comercial { background:#1565C0; color:#fff; }
+.ctr-buscar { width:100%; padding:10px 12px; border:1.5px solid #D5DEE9; border-radius:10px; font-size:0.9rem; margin-bottom:8px; font-family:inherit; }
+details.ctr-com { border:1px solid #E1E8F0; border-radius:12px; margin-bottom:8px; background:#fff; }
+details.ctr-com > summary { list-style:none; cursor:pointer; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+details.ctr-com > summary::-webkit-details-marker { display:none; }
+details.ctr-com[open] > summary { border-bottom:1px solid #EEF2F6; }
+.ctr-com-nombre { font-weight:800; font-size:0.88rem; color:#1A2B42; }
+.ctr-com-nombre small { font-weight:600; color:var(--gris); }
+.ctr-estado { font-size:0.76rem; font-weight:800; text-align:right; max-width:58%; overflow-wrap:anywhere; }
+.ctr-estado.ok { color:#1B5E20; } .ctr-estado.pend { color:#6D4C41; } .ctr-estado.prob { color:#B71C1C; }
+.ctr-acep { margin:8px 12px 10px; border-left:4px solid #90CAF9; padding:4px 0 4px 10px; }
+.ctr-acep.alterada { border-left-color:#E53935; }
+.ctr-acep h5 { font-size:0.82rem; color:#1A2B42; margin-bottom:4px; }
+.ctr-pagos { font-size:0.78rem; font-weight:800; color:#8A4B00; margin-top:4px; }
+.ctr-sub { font-size:0.74rem; color:var(--gris); }
+@media (max-width: 480px) { #modalContratos .modal { padding:20px 14px; } details.ctr-com > summary { flex-direction:column; align-items:flex-start; gap:3px; } .ctr-estado { text-align:left; max-width:100%; } .ctr-num b { font-size:1.25rem; } .ctr-fila { flex-direction:column; gap:0; } .ctr-fila .v { text-align:left; } }
 </style>
 </head>
 <body>
@@ -733,6 +770,7 @@ body {
                 <div class="botones-seccion">
                     <button class="btn-primario" style="background:#0D47A1;" onclick="abrirModalRegistros()">🚀 Pruebas y registros <span id="badgeRegistros" style="display:none;background:#FFB300;color:#222;border-radius:999px;padding:1px 8px;margin-left:4px;font-size:0.78rem;"></span></button>
                     <button class="btn-primario" style="background:#5E35B1;" onclick="abrirModalPlanes()">🧩 Planes</button>
+                    <button class="btn-primario" id="btnContratos" style="background:#00695C;" onclick="abrirModalContratos()">📄 Contratos</button>
                     <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
                         ＋ Nuevo cliente
                     </button>
@@ -874,6 +912,18 @@ body {
     </div>
 </div>
 
+<!-- V14: 📄 Contratos — SOLO CONSULTA. No escribe nada y no guarda datos en el navegador. -->
+<div class="modal-overlay" id="modalContratos">
+    <div class="modal" style="max-width:720px;">
+        <div class="modal-titulo">📄 Contratos</div>
+        <div id="ctrContenido"></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" id="btnCtrActualizar" onclick="cargarContratos()">🔄 Actualizar</button>
+            <button class="btn-cancelar" onclick="cerrarModalContratos()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- V11: Pruebas y registros (altas automáticas desde planes.html) -->
 <div class="modal-overlay" id="modalRegistros">
     <div class="modal" style="max-width:760px;">
@@ -890,7 +940,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -2368,6 +2418,156 @@ async function aplicarPromo(btn) {
     const r = await _adminApi('guardarPromocion', Object.assign({ confirmar: true }, _pmPrev));
     toast(r.error ? 'Error: ' + r.error : r.mensaje, r.error ? 'rojo' : 'verde');
     cargarPreciosAdmin();
+}
+</script>
+<script>
+// ═════════════ V14: 📄 Contratos — SOLO CONSULTA ═════════════
+// Usa únicamente: estadoContratos y verificarIntegridadContratos (backend v039, lectura) y clientesCargados (ya cargada).
+// · "Aceptó / sin aceptación" sale de validezParaPagos, que el backend arma con TODAS las filas (exacto aunque haya más de 200).
+// · El detalle (estadoContratos.aceptaciones) son solo las ÚLTIMAS 200 filas: si el total es mayor, se avisa y nunca se
+//   interpreta "no aparece en el detalle" como "nunca aceptó".
+// · El correo se muestra SIEMPRE enmascarado. Nada se guarda en el navegador; al cerrar la ventana se borra de la pantalla.
+let _ctrSeq = 0, _ctrDatos = null;
+function abrirModalContratos() {
+    document.getElementById('modalContratos').classList.add('visible');
+    cargarContratos();
+}
+function cerrarModalContratos() { document.getElementById('modalContratos').classList.remove('visible'); }
+function _ctrLimpiar() { _ctrSeq++; _ctrDatos = null; document.getElementById('ctrContenido').textContent = ''; }
+// se cierre como se cierre (botón, Atrás del celular o sesión vencida), los datos se borran de la pantalla
+new MutationObserver(function () { if (!document.getElementById('modalContratos').classList.contains('visible')) _ctrLimpiar(); })
+    .observe(document.getElementById('modalContratos'), { attributes: true, attributeFilter: ['class'] });
+
+function _ctrCorreo(c) {
+    c = String(c || ''); const i = c.indexOf('@');
+    return i < 1 ? '—' : c.charAt(0) + '***' + c.substring(i);
+}
+function _ctrCaracter(a) {
+    if (a.caracter === 'TITULAR') return 'Declaró actuar como titular';
+    if (a.caracter === 'REPRESENTANTE') return 'En representación (' + (a.caracterDetalle || '') + ')';
+    return 'No declarado';
+}
+function _ctrComprobante(c) {
+    c = String(c || '');
+    if (c.indexOf('ENVIADO') === 0) return 'Enviado' + (c.indexOf('reenvío') !== -1 ? ' (reenviado)' : '');
+    if (c === 'PENDIENTE') return 'Pendiente de envío';
+    if (c === 'NO_APLICA') return 'No corresponde';
+    return c || '—';
+}
+function _ctrFila(k, v) { return '<div class="ctr-fila"><span class="k">' + _esc(k) + '</span><span class="v">' + _esc(v) + '</span></div>'; }
+function _ctrAmbito(a) { return a === 'PRUEBA' ? '<span class="ctr-insignia prueba">PRUEBA — SIN VALOR LEGAL</span>' : a === 'COMERCIAL' ? '<span class="ctr-insignia comercial">COMERCIAL</span>' : _esc(a || '—'); }
+function _ctrDia(f) { const m = String(f || '').match(/^(\d\d\/\d\d\/\d{4})/); return m ? m[1] : String(f || ''); }
+
+async function cargarContratos() {
+    const miSeq = ++_ctrSeq, cont = document.getElementById('ctrContenido'), btn = document.getElementById('btnCtrActualizar');
+    cont.innerHTML = '<div class="ctr-aviso info">Consultando contratos y aceptaciones…</div>'; btn.disabled = true;
+    let est = null, integ = null;
+    try { [est, integ] = await Promise.all([_adminApi('estadoContratos', {}), _adminApi('verificarIntegridadContratos', {})]); }
+    catch (e) { est = null; }
+    btn.disabled = false;
+    if (miSeq !== _ctrSeq || !document.getElementById('modalContratos').classList.contains('visible')) return;   // se cerró o hubo otra consulta
+    if (!est || !integ || est.error || integ.error || !est.success || !integ.success) {
+        const msg = (est && est.error) || (integ && integ.error) || 'No se pudo consultar (sin conexión o respuesta inesperada).';
+        cont.innerHTML = '<div class="ctr-aviso error">❌ ' + _esc(msg) + '</div>'; return;
+    }
+    _ctrDatos = { est: est, integ: integ, hora: new Date() };
+    renderContratos('');
+}
+
+function renderContratos(filtro) {
+    const d = _ctrDatos; if (!d) return;
+    const est = d.est, integ = d.integ, cont = document.getElementById('ctrContenido');
+    const acept = Array.isArray(est.aceptaciones) ? est.aceptaciones : [];
+    const validez = Array.isArray(est.validezParaPagos) ? est.validezParaPagos : [];
+    const total = Number(integ.constancias) || 0;
+    const incompleto = total > acept.length;                                   // el backend recorta a las últimas 200
+    const aceptaron = {}; validez.forEach(function (v) { aceptaron[v.prefijo] = v; });          // exacto: TODAS las filas
+    const problemasPor = {}, problemasContrato = [];
+    (integ.problemas || []).forEach(function (p) {
+        if (p.tipo === 'CONSTANCIA') (problemasPor[p.prefijo] = problemasPor[p.prefijo] || []).push(p); else problemasContrato.push(p);
+    });
+    const detallePor = {}; acept.forEach(function (a) { (detallePor[a.prefijo] = detallePor[a.prefijo] || []).push(a); });
+    const clientes = Array.isArray(clientesCargados) ? clientesCargados : [];
+    const enLista = {}; clientes.forEach(function (c) { enLista[c.prefijo] = c; });
+    const hayPrueba = est.staging || (est.contratos || []).some(function (c) { return c.ambito === 'PRUEBA'; }) || acept.some(function (a) { return a.ambito === 'PRUEBA'; });
+
+    let h = '';
+    if (hayPrueba) h += '<div class="ctr-franja">CONTRATO DE PRUEBA — SIN VALOR LEGAL<small>Las aceptaciones de PRUEBA no habilitan pagos reales.</small></div>';
+    if (incompleto) h += '<div class="ctr-aviso alerta">⚠️ El detalle muestra solo las últimas ' + acept.length + ' constancias de ' + total + ': puede estar incompleto. ' +
+                         'Quién aceptó y quién no se calcula sobre TODAS las constancias, así que ese dato sí es exacto.</div>';
+    if (!clientes.length) h += '<div class="ctr-aviso alerta">La lista de clientes todavía no se cargó: cerrá esta ventana, esperá que aparezca la lista y volvé a abrirla.</div>';
+
+    // contrato publicado
+    const vig = (est.contratos || []).filter(function (c) { return c.version === est.vigente; })[0];
+    h += '<div class="ctr-bloque"><h4>Contrato publicado</h4>';
+    if (vig) h += _ctrFila('Versión', vig.version) + '<div class="ctr-fila"><span class="k">Ámbito</span><span class="v">' + _ctrAmbito(vig.ambito) + '</span></div>' +
+                  _ctrFila('Publicado', vig.publicado || '—') + _ctrFila('Integridad', vig.integra ? '✅ Íntegro' : '⚠️ ' + (vig.motivos || []).join('; '));
+    else h += '<div class="ctr-aviso ' + (est.problemaVigente ? 'error' : 'info') + '">' + _esc(est.problemaVigente || 'Todavía no hay un contrato publicado.') + '</div>';
+    const otras = (est.contratos || []).filter(function (c) { return c.version !== est.vigente; });
+    if (otras.length) h += '<div class="ctr-sub">Otras versiones: ' + otras.map(function (c) { return _esc(c.version) + ' (' + _esc(c.estado) + ')'; }).join(' · ') + '</div>';
+    h += '</div>';
+
+    // resumen
+    const nAcepto = clientes.filter(function (c) { return aceptaron[c.prefijo]; }).length;
+    const nPend = clientes.length - nAcepto;
+    const nProb = (integ.problemas || []).length;
+    h += '<div class="ctr-resumen"><div class="ctr-num"><b id="ctrNumAcepto">' + nAcepto + '</b><span>Con aceptación</span></div>' +
+         '<div class="ctr-num"><b id="ctrNumPend">' + nPend + '</b><span>Sin aceptación</span></div>' +
+         '<div class="ctr-num' + (nProb ? ' prob' : '') + '"><b id="ctrNumProb">' + nProb + '</b><span>Problemas</span></div></div>';
+    h += '<div class="ctr-aviso ' + (integ.ok ? 'info' : 'error') + '" id="ctrIntegridad">' + (integ.ok ? '✅ Integridad correcta: ' : '⚠️ Integridad con problemas: ') +
+         integ.contratos + ' contrato(s), ' + integ.constancias + ' constancia(s), ' + nProb + ' problema(s).' +
+         (problemasContrato.length ? ' Contrato: ' + _esc(problemasContrato.map(function (p) { return p.version + ': ' + (p.motivos || []).join('; '); }).join(' · ')) : '') + '</div>';
+
+    // lista de comercios
+    h += '<input class="ctr-buscar" id="ctrBuscar" placeholder="Buscar comercio o prefijo…" value="' + _esc(filtro) + '" oninput="renderContratos(this.value)">';
+    const f = String(filtro || '').trim().toLowerCase();
+    const filas = clientes.map(function (c) { return { prefijo: c.prefijo, nombre: c.nombre, plan: c.plan, activo: c.activo, vigente: c.vigente, cliente: true }; });
+    Object.keys(Object.assign({}, aceptaron, detallePor)).forEach(function (p) { if (!enLista[p]) filas.push({ prefijo: p, nombre: (detallePor[p] && detallePor[p][0].negocio) || '', cliente: false }); });
+    filas.forEach(function (c) {
+        if (f && (c.prefijo + ' ' + (c.nombre || '')).toLowerCase().indexOf(f) === -1) return;
+        const det = (detallePor[c.prefijo] || []).slice().reverse();          // la más nueva primero
+        const detAcep = det.filter(function (a) { return a.tipo === 'ACEPTACION'; });
+        const probs = problemasPor[c.prefijo] || [];
+        let estado, clase;
+        if (aceptaron[c.prefijo]) {
+            if (detAcep.length) {
+                estado = '✅ Aceptó · ' + _ctrDia(detAcep[0].fecha) + ' · v' + detAcep[0].version +
+                         (detAcep.length > 1 || incompleto ? ' · 🔁 ' + (incompleto ? '≥ ' : '') + detAcep.length + ' aceptaci' + (detAcep.length === 1 ? 'ón' : 'ones') : '');
+            } else estado = '✅ Aceptó — detalle fuera de las últimas ' + acept.length;
+            clase = 'ok';
+        } else {
+            estado = c.plan === 'PRUEBA' ? '⏳ Sin aceptación — aún no requerida' : '⏳ Sin aceptación'; clase = 'pend';
+        }
+        if (probs.length) { estado = '⚠️ Problema de integridad · ' + estado; clase = 'prob'; }
+        const sub = c.cliente ? (c.plan || 'sin plan') + (c.activo === false ? ' · SUSPENDIDO' : '') + (c.vigente === false ? ' · VENCIDO' : '')
+                              : 'no figura en la lista de clientes cargada';
+        h += '<details class="ctr-com" data-prefijo="' + _esc(c.prefijo) + '"><summary><span class="ctr-com-nombre">' + _esc(c.nombre || c.prefijo) + ' <small>(' + _esc(c.prefijo) + ') · ' + _esc(sub) + '</small></span>' +
+             '<span class="ctr-estado ' + clase + '">' + _esc(estado) + '</span></summary>';
+        if (!det.length) {
+            h += '<div class="ctr-acep"><div class="ctr-sub">' + (aceptaron[c.prefijo] ? 'Tiene aceptación registrada, pero su detalle no está entre las últimas ' + acept.length + ' constancias.'
+                 : (c.plan === 'PRUEBA' ? 'Comercio en PRUEBA: el contrato recién se exige antes del primer pago real.' : 'No registra ninguna aceptación.')) + '</div></div>';
+        }
+        det.forEach(function (a, i) {
+            const val = aceptaron[a.prefijo];
+            h += '<div class="ctr-acep' + (a.integra ? '' : ' alterada') + '"><h5>' + (a.tipo === 'ACEPTACION' ? 'Aceptación ' + (det.length - i) : 'Rechazo (informativo)') + ' · ' + _esc(a.fecha) + '</h5>' +
+                 _ctrFila('N.º de constancia', a.id) +
+                 '<div class="ctr-fila"><span class="k">Contrato</span><span class="v">v' + _esc(a.version) + ' · ' + _ctrAmbito(a.ambito) + '</span></div>' +
+                 (a.tipo === 'ACEPTACION' ? _ctrFila('Nombre declarado', a.firmante || '—') + _ctrFila('Carácter', _ctrCaracter(a)) : '') +
+                 _ctrFila('Contacto registrado', a.contacto || '—') + _ctrFila('Correo', _ctrCorreo(a.correo)) +
+                 (a.tipo === 'ACEPTACION' ? _ctrFila('Plan', (a.plan || '—') + (a.precio ? ' · ' + (a.moneda || '') + ' ' + a.precio : '')) : '') +
+                 _ctrFila('Comprobante', _ctrComprobante(a.comprobante)) +
+                 _ctrFila('Integridad', a.integra ? '✅ Íntegra' : '⚠️ ' + (a.motivos || []).join('; ')) +
+                 (a.tipo === 'ACEPTACION' ? '<div class="ctr-pagos">Válida para pagos: ' + (a.ambito === 'PRUEBA' ? 'NO — aceptación de PRUEBA' : (val && val.valida && i === 0 ? 'SÍ' : 'NO' + (val && val.motivo ? ' — ' + _esc(val.motivo) : ''))) + '</div>' : '') +
+                 '</div>';
+        });
+        h += '</details>';
+    });
+    h += '<div class="ctr-sub" style="margin-top:6px;">Consulta de las ' + d.hora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) +
+         ' · comercios según la lista de clientes cargada en el panel · solo consulta: esta ventana no modifica nada.</div>';
+    const abiertos = Array.from(cont.querySelectorAll('details.ctr-com[open]')).map(function (x) { return x.getAttribute('data-prefijo'); });
+    cont.innerHTML = h;
+    abiertos.forEach(function (p) { const x = cont.querySelector('details.ctr-com[data-prefijo="' + p + '"]'); if (x) x.open = true; });
+    const bx = document.getElementById('ctrBuscar'); if (filtro !== '' && bx) { bx.focus(); bx.setSelectionRange(bx.value.length, bx.value.length); }
 }
 </script>
 </body>
