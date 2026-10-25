@@ -148,6 +148,7 @@ body {
     .toolbar { padding: 6px 6px; gap: 4px; }
     .btn-tool { flex-direction: column; gap: 1px; padding: 5px 2px; border-radius: 12px; font-size: 0.6rem; letter-spacing: 0; line-height: 1.1; min-width: 0; }
     .btn-tool .ico { font-size: 1rem; }
+    #btnMiPlan { flex: 0 0 34px; } #btnMiPlan .txt { display: none; } /* V29: en celular, solo el ícono (no achica los demás botones) */
 }
 .btn-tool .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 /* V22 (P3): filtro por categoría en la lista ☰ */
@@ -704,6 +705,7 @@ body {
     <button class="btn-tool stats" id="btnReportes" onclick="window.location.href='reportes.html?p='+PREFIJO"><span class="ico">📊</span><span class="txt">Reportes</span></button>
     <button class="btn-tool fiados" id="btnFiados" onclick="window.location.href='fiados.html?p='+PREFIJO"><span class="ico">🧾</span><span class="txt">Fiados</span></button>
     <button class="btn-tool datos" id="btnMisDatos" onclick="abrirMisDatos()"><span class="ico">📥</span><span class="txt">Mis datos</span></button>
+    <button class="btn-tool datos" id="btnMiPlan" onclick="abrirPagoPlan()" title="Mi plan" aria-label="Mi plan"><span class="ico">💳</span><span class="txt">Mi plan</span></button>
     <button class="btn-tool cerrar" onclick="irAlInicio()"><span class="ico">🚪</span><span class="txt">Salir</span></button>
 </div>
 
@@ -969,7 +971,7 @@ if (!/^[A-Z0-9]{2,10}$/.test(PREFIJO)) {
 
 // ========== CONFIG ==========
 const API_URL  = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec';
-const APP_VERSION = 28;
+const APP_VERSION = 29;
 const HOY_KEY    = 'vao_ventas_' + PREFIJO + '_' + new Date().toISOString().slice(0, 10);
 const CARRITO_KEY= 'vao_carrito_' + PREFIJO;
 
@@ -1079,6 +1081,7 @@ async function verificarSesionCliente() {
             cargarDatosVendedor(); // V21: nombre/alias del negocio, ya con sesión
             mostrarEstadoPrueba(CONFIG_ACTUAL.estadoPrueba); // V23
             aplicarModoConsulta(CONFIG_ACTUAL.modoConsulta); // V25: vencido o suspendido → solo lectura
+            mpRetornoSiCorresponde(); // V29: volviendo de Mercado Pago
             // Paso 11: el catálogo (con costos y proveedores) recién se
             // pide una vez que la sesión quedó confirmada como válida —
             // antes se pedía en el INIT del script, sin esperar el login.
@@ -2890,14 +2893,14 @@ function mostrarEstadoPrueba(ep) {
     if (!ep) { div.style.display = 'none'; return; }
     if (ep.estado === 'ACTIVA') {
         div.className = ''; div.style.display = 'block'; div.style.background = '#E3F2FD'; div.style.color = '#0D47A1';
-        div.textContent = '🧪 Prueba gratuita: día ' + ep.dia + ' de 7 (hasta el ' + ep.venceTxt + ')';
+        div.innerHTML = _escHTML('🧪 Prueba gratuita: día ' + ep.dia + ' de 7 (hasta el ' + ep.venceTxt + ')') + ' <button onclick="abrirPagoPlan()" style="background:#1565C0;">💳 Elegir plan</button>'; // V29
     } else if (ep.estado === 'GRACIA') {
         div.className = 'gracia'; div.style.display = 'block'; div.style.background = ''; div.style.color = '';
-        div.textContent = '⏳ Tu prueba terminó el ' + ep.venceTxt + '. Seguís operando hasta el ' + ep.finGraciaTxt + ': contactá a VAO Sistemas para elegir un plan.';
+        div.innerHTML = _escHTML('⏳ Tu prueba terminó el ' + ep.venceTxt + '. Seguís operando hasta el ' + ep.finGraciaTxt + ': elegí un plan para seguir.') + '<br><button onclick="abrirPagoPlan()">💳 Pagar mi plan</button>'; // V29
     } else {
         div.className = 'vencida'; div.style.display = 'block'; div.style.background = ''; div.style.color = '';
         div.innerHTML = '🔒 La prueba gratuita terminó el ' + _escHTML(ep.finGraciaTxt) + '. Tus datos están guardados: podés consultarlos y descargarlos.<br>' +
-            '<button onclick="abrirMisDatos()">📥 Mis datos</button>'; // V25: todas las hojas, de a una
+            '<button onclick="abrirMisDatos()">📥 Mis datos</button> <button onclick="abrirPagoPlan()" style="background:#1565C0;">💳 Pagar mi plan</button>'; // V25 · V29
         ['btnIngreso', 'btnAjuste'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('bloqueado-prueba'); });
         document.querySelector('.btn-cobrar').classList.add('bloqueado-prueba');
     }
@@ -2908,9 +2911,82 @@ function aplicarModoConsulta(mc) {
     if (!mc) return;                        // vigente: mostrarEstadoPrueba ya dejó todo como corresponde
     const div = document.getElementById('avisoPrueba');
     div.className = 'consulta'; div.style.display = 'block'; div.style.background = ''; div.style.color = '';
-    div.innerHTML = _escHTML(mc.mensaje || '🔒 Modo consulta: podés ver y descargar tus datos.') + '<br><button onclick="abrirMisDatos()">📥 Mis datos</button>';
+    div.innerHTML = _escHTML(mc.mensaje || '🔒 Modo consulta: podés ver y descargar tus datos.') + '<br><button onclick="abrirMisDatos()">📥 Mis datos</button>' +
+        (mc.motivo === 'VENCIDA' ? ' <button onclick="abrirPagoPlan()" style="background:#2E7D32;">💳 Pagar mi plan</button>' : ''); // V29: solo si venció (una suspensión la resuelve VAO)
     ['btnIngreso', 'btnAjuste'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('bloqueado-prueba'); });
     document.querySelector('.btn-cobrar').classList.add('bloqueado-prueba');
+}
+
+// ========== V29: PAGAR MI PLAN (Mercado Pago · Checkout Pro) ==========
+// El precio, la orden y la acreditación los decide el SERVIDOR. Acá solo: elegir plan → ir a Mercado Pago →
+// al volver, pedir "verificar" (el servidor consulta la API oficial). Si el pago en línea no está habilitado, se informa.
+function _mpSolicitudId(plan) {
+    const k = 'vao_mp_sid_' + PREFIJO + '_' + plan;
+    try { const g = JSON.parse(localStorage.getItem(k) || 'null'); if (g && g.id && Date.now() - g.ts < 50 * 60000) return g.id; } catch (e) {}
+    let id = '';
+    try { if (crypto.randomUUID) id = crypto.randomUUID(); } catch (e) {}
+    if (!id) { const a = new Uint8Array(16); crypto.getRandomValues(a); a[6] = (a[6] & 15) | 64; a[8] = (a[8] & 63) | 128; const h = Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+               id = h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20); }
+    try { localStorage.setItem(k, JSON.stringify({ id: id, ts: Date.now() })); } catch (e) {}
+    return id;
+}
+async function abrirPagoPlan() {
+    document.getElementById('modalPagoPlan').classList.add('open');
+    const lista = document.getElementById('pagoPlanLista'), est = document.getElementById('pagoPlanEstado');
+    est.textContent = ''; lista.innerHTML = '<div style="text-align:center;padding:30px;color:#bbb;">Cargando planes…</div>';
+    try {
+        const r = await _llamarAPI('getPlanesPublicos', {});
+        const planes = ((r && r.planes) || []).filter(p => p.codigo !== 'PRUEBA' && p.contratable && !p.proximamente && !p.cotizacion && p.precioRegular > 0);
+        if (!planes.length) { lista.innerHTML = '<div style="color:#C62828;padding:14px 0;">No hay planes disponibles para pagar en línea.</div>'; return; }
+        const promo = r.promo && r.promoActiva !== false ? r.promo : null;
+        lista.innerHTML = planes.map(p => '<div class="md-fila"><div><b>' + _escHTML(p.nombre) + '</b><small>' +
+            (promo && p.conPromo && p.precioLanzamiento > 0 ? '🚀 $' + Number(p.precioLanzamiento).toLocaleString('es-AR') + ' por mes (lanzamiento, si quedan cupos) · regular $' : '$') +
+            Number(p.precioRegular).toLocaleString('es-AR') + ' por mes · ' +
+            _escHTML((p.modulos || []).join(', ')) + '</small></div><button data-plan="' + _escHTML(p.codigo) + '" onclick="pagarPlanMP(this)">Pagar</button></div>').join('') +
+            '<div style="font-size:0.75rem;color:#777;margin-top:8px;">El importe final lo calcula el sistema al crear el pago. Se paga en Mercado Pago; al volver, tu plan se activa cuando Mercado Pago confirma el cobro.</div>';
+    } catch (e) { lista.innerHTML = '<div style="color:#C62828;padding:14px 0;">📡 Sin conexión. Probá de nuevo.</div>'; }
+}
+function cerrarPagoPlan() { document.getElementById('modalPagoPlan').classList.remove('open'); }
+async function pagarPlanMP(btn) {
+    const plan = btn.getAttribute('data-plan'), est = document.getElementById('pagoPlanEstado');
+    document.querySelectorAll('#pagoPlanLista button').forEach(b => b.disabled = true);
+    est.textContent = '⏳ Preparando el pago…';
+    try {
+        const r = await _llamarAPI('mpCrearOrden', { token: _tokenActual(), plan: plan, solicitudId: _mpSolicitudId(plan) });
+        if (!r || !r.success || !r.url) {
+            est.textContent = '❌ ' + ((r && r.error) || 'No se pudo preparar el pago.') + (r && r.bloqueado ? ' Mientras tanto, coordiná el pago por transferencia con VAO Sistemas.' : '');
+            document.querySelectorAll('#pagoPlanLista button').forEach(b => b.disabled = false); return;
+        }
+        if (!/^https:\/\/([a-z0-9-]+\.)*(mercadopago\.com(\.[a-z]{2})?|mercadolibre\.com)\//i.test(r.url) && !/^https:\/\/(sandbox\.)?mp\.falso\//.test(r.url)) {
+            est.textContent = '❌ Dirección de pago inesperada. No se abrió.'; return;
+        }
+        est.textContent = '➡️ Te llevamos a Mercado Pago ($' + Number(r.importe).toLocaleString('es-AR') + ')' + (r.aviso ? '. ' + r.aviso : '') + '…';
+        try { localStorage.setItem('vao_mp_orden_' + PREFIJO, r.orden); } catch (e) {}
+        window.location.href = r.url;
+    } catch (e) { est.textContent = '📡 Sin conexión. Probá de nuevo.'; document.querySelectorAll('#pagoPlanLista button').forEach(b => b.disabled = false); }
+}
+// Vuelta de Mercado Pago (?mp=ORDEN). Se consulta hasta 12 veces (1 minuto). El POS no decide nada: muestra lo que responde el servidor.
+let _mpVerificando = false;
+async function mpRetornoSiCorresponde() {
+    const orden = new URLSearchParams(window.location.search).get('mp') || '';
+    if (!/^VAO-ORD-[0-9a-f-]{36}$/.test(orden) || _mpVerificando) return;
+    _mpVerificando = true;
+    for (let i = 0; i < 12; i++) {
+        let r = null;
+        try { r = await _llamarAPI('mpVerificarOrden', { token: _tokenActual(), orden: orden }); } catch (e) { r = null; }
+        if (r && r.estado === 'ACREDITADO') {
+            mostrarToast(r.mensaje || '✅ Pago acreditado', 'verde');
+            try { localStorage.removeItem('vao_mp_orden_' + PREFIJO); history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(PREFIJO)); } catch (e) {}
+            _mpVerificando = false; setTimeout(() => location.reload(), 2500); return;
+        }
+        if (r && r.estado === 'NO_ACREDITADO') { mostrarToast('❌ ' + r.mensaje, 'rojo'); break; }
+        if (r && r.error) { mostrarToast('❌ ' + r.error, 'rojo'); break; }
+        if (i === 0) mostrarToast('⏳ Verificando tu pago con Mercado Pago…', 'naranja');
+        await new Promise(res => setTimeout(res, 5000));
+        if (i === 11) mostrarToast('⏳ Mercado Pago todavía no confirmó el pago. Si ya pagaste, se acreditará solo en unos minutos.', 'naranja');
+    }
+    try { history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(PREFIJO)); } catch (e) {}
+    _mpVerificando = false;
 }
 
 // ========== V25: MIS DATOS — descarga hoja por hoja (CSV) ==========
@@ -2984,6 +3060,20 @@ async function descargarDatos(que) {
     } catch (e) { mostrarToast('📡 Sin conexión: no se pudo descargar', 'rojo'); }
 }
 </script>
+<!-- ===== V29: MODAL PAGAR MI PLAN (Mercado Pago) ===== -->
+<div class="modal-bg" id="modalPagoPlan" onclick="if(event.target===this)cerrarPagoPlan()">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+            <span class="modal-titulo">💳 Pagar mi plan</span>
+            <button class="modal-cerrar" onclick="cerrarPagoPlan()">✕</button>
+        </div>
+        <div style="overflow-y:auto;max-height:78vh;padding:0 16px 18px;">
+            <div id="pagoPlanLista"></div>
+            <div id="pagoPlanEstado" style="font-size:0.82rem;color:#0D47A1;font-weight:700;margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
 <!-- ===== V25: MODAL MIS DATOS (descarga hoja por hoja) ===== -->
 <div class="modal-bg" id="modalMisDatos" onclick="if(event.target===this)cerrarMisDatos()">
     <div class="modal-sheet">

@@ -7,7 +7,10 @@
 <meta name="referrer" content="no-referrer">
 <title>VAO POS · Contrato del servicio</title>
 <!--
-  VAO POS MULTIHOJA — contrato.html V1.1 (STAGING) — 23/10/2026
+  VAO POS MULTIHOJA — contrato.html V2 (candidata) — 24/10/2026
+  V2: admite también el contrato COMERCIAL (que el backend v040 solo permite fuera de STAGING, con habilitación y revisión jurídica).
+      Con un contrato COMERCIAL la franja "PRUEBA — SIN VALOR LEGAL" se oculta; con PRUEBA todo queda igual que V1.1.
+      Cualquier otro ámbito, o una combinación incoherente (COMERCIAL marcado "sin valor legal"), se rechaza.
   V1.1: solo cambia la IMPRESIÓN (@media print): la constancia entra en una hoja A4. Pantalla y JavaScript iguales a V1.
   Backend requerido: v039 (contratoSolicitarCodigo, getAnexoC, contratoAceptar, getConstancia, verificarConstancia, getContrato).
   Reglas de esta página:
@@ -260,13 +263,16 @@ footer { text-align: center; color: var(--suave); font-size: .82rem; padding: 0 
     <div class="msg" id="msgOlvidar"></div>
   </div>
 </main>
-<footer>VAO Sistemas · VAO POS · contrato.html V1 (STAGING)</footer>
+<footer>VAO Sistemas · VAO POS · contrato.html V2</footer>
 
 <script>
 'use strict';
 // ── Configuración ─────────────────────────────────────────────────────────────
 const API_URL = 'https://script.google.com/macros/s/AKfycbyz-MLKFaYNgifK4n1WnyZkP75Mvbfty-pAGL5f_RcOlmVlNtIp72rj25T-YhOPytjadA/exec'; // STAGING
-const VERSION_PAGINA = 'contrato.html V1';
+const VERSION_PAGINA = 'contrato.html V2';
+// V2: PRUEBA (sin valor legal) o COMERCIAL. Ningún otro ámbito. La franja de PRUEBA se ve por defecto y solo se oculta con COMERCIAL.
+function ambitoAdmitido(ambito, sinValorLegal) { return (ambito === 'PRUEBA' && sinValorLegal === true) || (ambito === 'COMERCIAL' && sinValorLegal === false); }
+function ajustarFranja(ambito) { const f = $('franja'); if (f) f.style.display = ambito === 'COMERCIAL' ? 'none' : ''; }
 const TIEMPO_RESPUESTA_MS = 30000;
 const ESPERA_REENVIO_MS = 60000;
 const VIDA_CODIGO_MS = 15 * 60000;
@@ -367,7 +373,8 @@ async function cargarContrato() {
   const r = await api('getContrato', {}, true);
   if (r._incierto) return error('Sin conexión', 'No pudimos cargar el contrato (' + r._motivo + '). Revisá tu conexión y tocá Reintentar.');
   if (r.error) return error(r.alterado ? 'Contrato en revisión' : 'Contrato no disponible', r.error);
-  if (r.ambito !== 'PRUEBA' || r.sinValorLegal !== true) return error('Contrato no admitido', 'Esta página de pruebas solo funciona con contratos de PRUEBA (sin valor legal).');
+  if (!ambitoAdmitido(r.ambito, r.sinValorLegal)) return error('Contrato no admitido', 'El contrato publicado tiene un tipo que esta página no reconoce. Avisá a VAO Sistemas.');
+  ajustarFranja(r.ambito);
   E.contrato = r;
   $('leerComercio').textContent = E.prefijo; $('leerVersion').textContent = r.version; $('leerHuella').textContent = r.hash;
   $('textoContrato').textContent = r.texto;
@@ -442,7 +449,7 @@ async function leerAnexo(plan) {
     else msg(destino, 'error', r.error || 'No se pudo leer el Anexo C.');
     return;
   }
-  if (r.contrato.ambito !== 'PRUEBA') { error('Contrato no admitido', 'Esta página de pruebas solo funciona con contratos de PRUEBA.'); return; }
+  if ((r.contrato.ambito !== 'PRUEBA' && r.contrato.ambito !== 'COMERCIAL') || (E.contrato && r.contrato.ambito !== E.contrato.ambito)) { error('Contrato no admitido', 'El tipo de contrato cambió mientras leías. Volvé a cargar la página.'); return; }
   E.anexo = r; E.planElegido = r.anexoC.plan;
   pintarAnexo(r);
   mostrarAceptar();
@@ -587,6 +594,7 @@ function caracterTxt(r) {
 function pintarConstancia(r, verificador) {
   const c = $('constDetalle'); c.textContent = '';
   c.appendChild(el('p', { class: 'grande ' + (r.resultado === 'VÁLIDA' ? 'valida' : 'alterada'), text: r.resultado }));
+  ajustarFranja(r.sinValorLegal === false && /^COMERCIAL/.test(String(r.ambito || '')) ? 'COMERCIAL' : 'PRUEBA');
   if (r.sinValorLegal) c.appendChild(el('div', { class: 'msg aviso', text: 'CONTRATO DE PRUEBA — SIN VALOR LEGAL. Esta aceptación no habilita pagos y no cambia tu plan ni tu vigencia.' }));
   [['Número de constancia', r.aceptacionId], ['Fecha', r.fecha + (r.fechaUTC ? ' · ' + r.fechaUTC : '')], ['Comercio', r.negocio + ' (' + r.prefijo + ')'],
    ['Aceptado por (nombre declarado)', r.firmanteDeclarado], ['Carácter', caracterTxt(r)], ['Contacto registrado', r.contactoRegistrado || '—'],

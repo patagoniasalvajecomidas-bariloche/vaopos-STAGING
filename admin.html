@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- VAO POS · Admin V17 (STAGING) · 24/10/2026 · V17 (backend v040.2): en 📒 Pagos registrados, ✏️ Corregir / ⛔ Anular / confirmar revisión de un cobro; ventana «📊 Cobros» por período; Mercado Pago en línea apagado oculta su botón. -->
+<!-- VAO POS · Admin V16 (STAGING) · 24/10/2026 · V16: en 📒 Pagos registrados, resolver un pago RETENIDO de Mercado Pago (backend v040.1). V15: transferencias con llave única y Mercado Pago. -->
 <!-- VAO POS · Admin V14 (STAGING) · 23/10/2026 · V14: ventana «📄 Contratos», SOLO CONSULTA (estadoContratos + verificarIntegridadContratos + clientesCargados). -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -771,6 +773,7 @@ details.ctr-com[open] > summary { border-bottom:1px solid #EEF2F6; }
                     <button class="btn-primario" style="background:#0D47A1;" onclick="abrirModalRegistros()">🚀 Pruebas y registros <span id="badgeRegistros" style="display:none;background:#FFB300;color:#222;border-radius:999px;padding:1px 8px;margin-left:4px;font-size:0.78rem;"></span></button>
                     <button class="btn-primario" style="background:#5E35B1;" onclick="abrirModalPlanes()">🧩 Planes</button>
                     <button class="btn-primario" id="btnContratos" style="background:#00695C;" onclick="abrirModalContratos()">📄 Contratos</button>
+                    <button class="btn-primario" id="btnCobros" style="background:#2E7D32;" onclick="abrirModalCobros()">📊 Cobros</button>
                     <button class="btn-primario btn-verde" onclick="abrirModalAlta()">
                         ＋ Nuevo cliente
                     </button>
@@ -924,6 +927,25 @@ details.ctr-com[open] > summary { border-bottom:1px solid #EEF2F6; }
     </div>
 </div>
 
+<!-- V17: 📊 Cobros por período — SOLO CONSULTA (reporteCobrosVao). -->
+<div class="modal-overlay" id="modalCobros">
+    <div class="modal" style="max-width:820px;">
+        <div class="modal-titulo">📊 Cobros por período</div>
+        <div class="cob-filtros" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;">
+            <div class="form-grupo" style="margin:0;"><label class="form-label">Año</label><input type="number" class="form-input" id="cobAnio" min="2020" max="2100" style="width:92px;"></div>
+            <div class="form-grupo" style="margin:0;"><label class="form-label">Mes</label><select class="form-input" id="cobMes"><option value="">Todo el año</option></select></div>
+            <div class="form-grupo" style="margin:0;"><label class="form-label">Comercio</label><select class="form-input" id="cobPrefijo"><option value="">Todos</option></select></div>
+            <div class="form-grupo" style="margin:0;"><label class="form-label">Entorno</label><select class="form-input" id="cobEntorno"><option value="SIMULADO">Simulado</option><option value="REAL">Real</option></select></div>
+            <div class="form-grupo" style="margin:0;"><label class="form-label">Fecha</label><select class="form-input" id="cobBase"><option value="PAGO">de pago</option><option value="REGISTRO">de registro</option></select></div>
+            <button class="btn-accion" id="cobBtnConsultar" style="background:#2E7D32;color:white;" onclick="cargarCobros()">Consultar</button>
+        </div>
+        <div id="cobContenido"><div class="ayuda">Elegí el período y tocá Consultar.</div></div>
+        <div class="modal-footer">
+            <button class="btn-cancelar" onclick="cerrarModalCobros()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- V11: Pruebas y registros (altas automáticas desde planes.html) -->
 <div class="modal-overlay" id="modalRegistros">
     <div class="modal" style="max-width:760px;">
@@ -940,7 +962,7 @@ details.ctr-com[open] > summary { border-bottom:1px solid #EEF2F6; }
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 14;
+const APP_VERSION = 17;
 document.addEventListener('DOMContentLoaded', function(){
     var tag = document.createElement('span');
     tag.id = 'version-tag';
@@ -1724,7 +1746,8 @@ const ESTADOS_COMERCIALES = {
     HISTORICO_CON_FECHA: ['⚠️ Pendiente de regularizar (fecha sin pago registrado)', '#B26A00'],
     DESINCRONIZADO:      ['⚠️ Fecha Vence distinta del historial', '#C62828']
 };
-const MEDIOS_PAGO = [['TRANSFERENCIA', 'Transferencia'], ['MERCADO_PAGO', 'Mercado Pago'], ['EFECTIVO', 'Efectivo'], ['OTRO', 'Otro']];
+const MEDIOS_PAGO = [['TRANSFERENCIA', 'Transferencia bancaria'], ['MERCADO_PAGO', 'Mercado Pago (n.º de operación)']]; // V15: solo medios verificables
+let _vpFraseMem = ''; // V15
 const TIPOS_REGISTRO = { PAGO: '💵 Pago', PAGO_SIMULADO: '🧪 Pago simulado', CORTESIA: '🎁 Cortesía (sin pago)', REGULARIZACION: '🛠️ Regularización', SINCRONIZACION: '🔄 Sincronización' };
 
 function _nuevaClave() {
@@ -1760,7 +1783,7 @@ function _alertaRegularizar() {
 
 function abrirModalVigencia(prefijo) {
     if (!prefijo) return;
-    vigenciaPrefijoActual = prefijo; _vpEstado = null; _vpPrevia = {}; _vpClave = _nuevaClave();
+    vigenciaPrefijoActual = prefijo; _vpEstado = null; _vpPrevia = {}; _vpClave = _nuevaClave(); _vpFraseMem = ''; // V15
     document.getElementById('vigenciaPrefijo').textContent = prefijo;
     document.getElementById('vpContenido').innerHTML = '<div class="ayuda">Cargando…</div>';
     document.getElementById('modalVigencia').classList.add('visible');
@@ -1828,21 +1851,29 @@ function renderVigenciaPagos() {
         '<button class="btn-accion" style="margin-top:6px;background:#1565C0;color:white;" onclick="vpPrevia(\'sincronizarVigencia\', this)">Vista previa</button><div id="vpBox_sincronizarVigencia"></div></div>';
 
     // Registrar pago
-    h += '<div class="vp-caja"><h4>💵 Registrar pago confirmado' + (r.pagosSimulados ? ' <span style="color:#6A1B9A;">(SIMULADO · STAGING)</span>' : '') + '</h4>';
-    if (!r.pagosSimulados) {
+    const modoPago = r.modoPagos || (r.pagosSimulados ? 'SIMULADO' : 'BLOQUEADO'); // V15
+    h += '<div class="vp-caja"><h4>💵 Registrar pago confirmado' + (modoPago === 'SIMULADO' ? ' <span style="color:#6A1B9A;">(SIMULADO · STAGING)</span>' : modoPago === 'REAL' ? ' <span style="color:#C62828;">(DINERO REAL)</span>' : '') + '</h4>';
+    if (modoPago === 'BLOQUEADO') {
         h += '<div class="ayuda" id="vpPagoBloqueado">🔒 Bloqueado: los pagos reales se habilitan cuando el contrato digital esté implementado y revisado. No se registra nada.</div>';
     } else if (!(r.contratables || []).length) {
         h += '<div class="ayuda">No hay planes pagos contratables en PLANES_VAO.</div>';
     } else {
         const def = (r.contratables.find(p => p.codigo === r.plan) || r.contratables[0]);
-        h += '<div class="ayuda" style="margin-bottom:6px;">Sin dinero real. Un pago = <b>un mes calendario</b>. Si todavía está vigente, el mes nuevo empieza al terminar el actual; si venció (o viene de PRUEBA), empieza hoy. ' +
+        h += '<div class="ayuda" style="margin-bottom:6px;">' + (modoPago === 'REAL' ? '<b>Registrá solo dinero que ya viste acreditado en la cuenta.</b> ' : 'Sin dinero real. ') + 'Un pago = <b>un mes calendario</b>. Si todavía está vigente, el mes nuevo empieza al terminar el actual; si venció (o viene de PRUEBA), empieza hoy. ' +
             'Elegir otro plan acá lo cambia <b>al confirmar este pago</b> (sin prorrateo).</div>' +
             '<div class="form-fila"><div class="form-grupo"><label class="form-label">Plan que paga</label><select class="form-input" id="vpPlan" onchange="vpPrecioDePlan()">' +
             r.contratables.map(p => '<option value="' + _esc(p.codigo) + '"' + (p.codigo === def.codigo ? ' selected' : '') + '>' + _esc(p.nombre) + (p.precioRegular ? ' — $' + Number(p.precioRegular).toLocaleString('es-AR') : '') + '</option>').join('') + '</select></div>' +
             '<div class="form-grupo"><label class="form-label">Importe recibido ($)</label><input class="form-input" id="vpImporte" inputmode="numeric" maxlength="9" value="' + (def.precioRegular || '') + '"></div></div>' +
             '<div class="form-fila"><div class="form-grupo"><label class="form-label">Medio</label><select class="form-input" id="vpMedio">' + MEDIOS_PAGO.map(m => '<option value="' + m[0] + '">' + m[1] + '</option>').join('') + '</select></div>' +
             '<div class="form-grupo"><label class="form-label">Fecha del pago</label><input type="date" class="form-input" id="vpFechaPago" max="' + _hoyISO() + '" value="' + _hoyISO() + '"></div></div>' +
-            '<div class="form-grupo"><label class="form-label">Referencia (opcional)</label><input class="form-input" id="vpReferencia" maxlength="80" placeholder="N.º de operación o comprobante"></div>' +
+            // V15 (Etapa 3A): datos de la transferencia. La referencia + la cuenta que recibió forman la LLAVE ÚNICA: la misma transferencia no se acredita dos veces.
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Cuenta que recibió</label><select class="form-input" id="vpCuenta">' +
+                (r.cuentas || []).map(c => '<option value="' + _esc(c.id) + '">' + _esc(c.id + ' · ' + c.banco + (c.alias ? ' · ' + c.alias : '')) + '</option>').join('') + '</select></div>' +
+            '<div class="form-grupo"><label class="form-label">Referencia de la operación</label><input class="form-input" id="vpReferencia" maxlength="60" autocomplete="off" placeholder="Como figura en el extracto de esa cuenta"></div></div>' +
+            '<div class="form-fila"><div class="form-grupo"><label class="form-label">Banco o billetera de origen</label><input class="form-input" id="vpBanco" maxlength="40" placeholder="Ej.: Galicia, Mercado Pago, Brubank"></div>' +
+            '<div class="form-grupo" style="max-width:150px;"><label class="form-label">Titular (últimos 4, opcional)</label><input class="form-input" id="vpTitular" inputmode="numeric" maxlength="4"></div></div>' +
+            '<div class="form-grupo"><label class="form-label">Verificó el ingreso' + (modoPago === 'REAL' ? '' : ' (opcional en simulado)') + '</label><input class="form-input" id="vpOperador" maxlength="40" placeholder="Nombre de quien vio el dinero acreditado"></div>' +
+            '<div class="ayuda" style="margin:2px 0 6px;">Para Mercado Pago cargado a mano: elegí ese medio y escribí el número de operación (solo dígitos).</div>' +
             '<button class="btn-accion" id="vpBtnPagoPrevia" style="background:#2E7D32;color:white;" onclick="vpPrevia(\'confirmarPagoRecibido\', this)">Vista previa del pago</button><div id="vpBox_confirmarPagoRecibido"></div>';
     }
     h += '</div>';
@@ -1878,7 +1909,184 @@ function renderVigenciaPagos() {
             (x.motivo ? (x.importe ? '<br>' : '') + _esc(x.motivo) : '') + '<br><span class="ayuda">' + _esc(x.admin || '') + '</span></td></tr>').join('') +
         '</tbody></table></div>' : '<div class="ayuda">Sin registros todavía.</div>') + '</div>';
 
+    // V15: pagos registrados (PAGOS_VAO, solo se agregan filas) y alertas de Mercado Pago
+    const pv = r.pagosVao || { pagos: [], alertas: [] };
+    const of = pv.oferta;
+    h += '<div class="vp-caja" id="vpPagosVao"><h4>📒 Pagos registrados (' + (pv.pagos || []).length + ')</h4>' +
+        (of ? '<div class="ayuda" id="vpOferta" style="margin-bottom:6px;">🚀 Oferta de lanzamiento (' + _esc(of.estado) + '): ' + of.confirmados + ' de ' + of.total + ' cupos confirmados' +
+            (of.reservados ? ', ' + of.reservados + ' reservado(s)' : '') + ', ' + of.disponibles + ' libre(s).' +
+            (of.comercio ? ' <b>Este comercio tiene el beneficio hasta el ' + _esc(of.comercio.finBeneficio) + '.</b>' : '') + '</div>' : '') +
+        (pv.alertas || []).map(a => '<div class="vp-aviso" style="background:#FFF3E0;border:1px solid #FFB74D;">⚠️ <b>' + _esc(a.tipo) + '</b> · pago MP ' + _esc(a.paymentId || '') + ': ' + _esc(a.mensaje || '') + '</div>').join('') +
+        ((pv.pagos || []).length ? '<div style="overflow-x:auto;"><table class="vp-hist"><thead><tr><th>Tipo</th><th>Medio</th><th>Importe</th><th>Detalle</th></tr></thead><tbody>' +
+            pv.pagos.map(x => '<tr><td>' + _esc(x.tipo) + (x.cobro && x.cobro.anulacion ? '<br><b style="color:var(--rojo);">ANULADO</b>' : '') + (x.relacionado ? '<br><span class="ayuda">de ' + _esc(String(x.relacionado).slice(0, 12)) + '…</span>' : '') + (x.entorno === 'SIMULADO' ? '<br><span class="ayuda">simulado</span>' : '') + '</td><td>' + _esc(x.medio) + '</td><td>$' + Number((x.cobro ? x.cobro.importe : x.importe) || 0).toLocaleString('es-AR') + (x.cobro && x.cobro.correcciones ? '<br><span class="ayuda">corregido (original $' + Number(x.importe || 0).toLocaleString('es-AR') + ')</span>' : '') + '<br><span class="ayuda">' + _esc(x.fechaPago) + '</span></td><td>' +
+                (x.referencia ? 'ref. ' + _esc(x.referencia) + ' · ' + _esc(x.cuenta) : '') + (x.mp ? 'MP ' + _esc(x.mp) + ' · ' + _esc(x.mpEstado) : '') +
+                (x.inicio ? '<br>' + _esc(x.inicio) + ' → ' + _esc(x.fin) : '') + (x.motivo ? '<br><span class="ayuda">' + _esc(x.motivo) + '</span>' : '') + (x.operador ? '<br><span class="ayuda">verificó: ' + _esc(x.operador) + '</span>' : '') + '</td></tr>').join('') +
+            '</tbody></table></div>' : '<div class="ayuda">Sin pagos en el registro central todavía.</div>') +
+        (pv.pagos || []).map(_vpRetenidoHtml).join('') +   // V16: pagos retenidos, fuera de la tabla (se leen bien en el celular)
+        _vpCobrosAccionesHtml(pv.pagos || []) +             // V17: corregir / anular / revisar
+        (r.modoPagos && r.modoPagos !== 'BLOQUEADO' && r.mpEnLinea !== false ? '<button class="btn-accion" id="vpBtnConciliar" style="margin-top:6px;background:#00695C;color:white;" onclick="vpConciliarMP(this)">🔄 Consultar Mercado Pago ahora</button><div id="vpConciliarBox"></div>' : '') +
+        '</div>';
+
     document.getElementById('vpContenido').innerHTML = h;
+}
+
+// ═════ V17: corregir / anular / revisar un cobro (backend v040.2). Nada se borra: se agregan registros vinculados. ═════
+function _vpCobrosAccionesHtml(pagos) {
+    const cobros = pagos.filter(x => x.tipo === 'CREDITO' && x.cobro && /^PAG-[0-9a-f-]{36}$/.test(String(x.pagoId || '')));
+    if (!cobros.length) return '';
+    return '<div class="vp-caja" id="vpCobrosAcc" style="margin-top:8px;"><h4>🧾 Cobros: corregir o anular</h4>' +
+        cobros.map(x => {
+            const c = x.cobro, id = x.pagoId;
+            let h = '<div class="vp-cobro" data-pago="' + id + '" style="border-top:1px solid #eee;padding:6px 0;">' +
+                '<b>$' + Number(c.importe || 0).toLocaleString('es-AR') + '</b> · ' + _esc(c.fechaPago) + ' · ' + _esc(x.medio) + (x.referencia ? ' · ref. ' + _esc(x.referencia) : '') +
+                (x.inicio ? ' · período ' + _esc(x.inicio) + ' → ' + _esc(x.fin) : '') + (c.correcciones ? ' <span class="ayuda">(' + c.correcciones + ' corrección/es)</span>' : '');
+            if (c.anulacion) h += '<div class="ayuda" style="color:var(--rojo);">⛔ ANULADO · ' + _esc(c.anulacion.estado) + ' · ' + _esc(c.anulacion.fecha) + ' · ' + _esc(c.anulacion.operador || '') + '<br>' + _esc(c.anulacion.motivo) + '</div>';
+            h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">' +
+                (c.puedeCorregir ? '<button class="btn-accion" onclick="vpCobroForm(\'' + id + '\',\'corregir\')">✏️ Corregir</button>' : '') +
+                (c.puedeAnular ? '<button class="btn-accion" onclick="vpCobroForm(\'' + id + '\',\'anular\')">⛔ Anular</button>' : '') +
+                (c.puedeResolver ? '<button class="btn-accion" onclick="vpCobroForm(\'' + id + '\',\'resolver\')">✔️ Confirmar revisión</button>' : '') +
+                (c.anulacion && c.anulacion.completar ? '<button class="btn-accion" onclick="vpCobroForm(\'' + id + '\',\'completar\')">🔧 Completar anulación</button>' : '') +
+                '</div><div class="vpCobroBox"></div></div>';
+            return h;
+        }).join('') + '</div>';
+}
+const _vpCobroAcc = { corregir: 'corregirPagoVao', anular: 'anularPagoVao', resolver: 'resolverAnulacionVao', completar: 'anularPagoVao' };
+function vpCobroForm(pagoId, tipo) {
+    const cont = document.querySelector('.vp-cobro[data-pago="' + pagoId + '"]'); if (!cont) return;
+    document.querySelectorAll('.vpCobroBox').forEach(b => { b.innerHTML = ''; });
+    const box = cont.querySelector('.vpCobroBox');
+    const titulos = { corregir: '✏️ Corregir importe o fecha de pago (el original se conserva; la vigencia no cambia)',
+        anular: '⛔ Anulación administrativa (no es una devolución de dinero; el original se conserva)',
+        resolver: '✔️ Confirmar que revisaste esta anulación (la vigencia no cambia)', completar: '🔧 Completar la anulación que quedó a medio hacer' };
+    box.dataset.clave = _nuevaClave();
+    box.innerHTML = '<div style="background:#F5F5F5;border-radius:10px;padding:8px;margin-top:6px;"><div class="ayuda" style="margin-bottom:6px;"><b>' + _esc(titulos[tipo]) + '</b></div>' +
+        (tipo === 'corregir' ? '<div class="form-grupo"><label class="form-label">Importe correcto (pesos enteros; vacío = sin cambio)</label><input class="form-input vpcImp" inputmode="numeric" maxlength="9"></div>' +
+            '<div class="form-grupo"><label class="form-label">Fecha de pago correcta (vacío = sin cambio)</label><input type="date" class="form-input vpcFecha"></div>' : '') +
+        '<div class="form-grupo"><label class="form-label">Motivo (obligatorio)</label><input class="form-input vpcMotivo" maxlength="200"></div>' +
+        '<div class="form-grupo"><label class="form-label">Operador (quién lo hace)</label><input class="form-input vpcOp" maxlength="40"></div>' +
+        '<button class="btn-accion vpcBtn" style="background:#455A64;color:white;" onclick="vpCobroEnviar(\'' + pagoId + '\',\'' + tipo + '\')">Revisar</button>' +
+        '<div class="vpcRes" style="margin-top:6px;"></div></div>';
+}
+async function vpCobroEnviar(pagoId, tipo, firma) {
+    const cont = document.querySelector('.vp-cobro[data-pago="' + pagoId + '"]'); if (!cont) return;
+    const box = cont.querySelector('.vpCobroBox'), res = box.querySelector('.vpcRes'), q = c => (box.querySelector(c) || {}).value || '';
+    const d = { pagoId: pagoId, motivo: q('.vpcMotivo').trim(), operador: q('.vpcOp').trim() };
+    if (tipo === 'corregir') { d.clave = box.dataset.clave; const imp = q('.vpcImp').replace(/\D/g, ''); if (imp) d.importe = imp; if (q('.vpcFecha')) d.fechaPago = q('.vpcFecha'); }
+    if (d.motivo.length < 5) { res.innerHTML = '<div class="ayuda" style="color:var(--rojo);">Escribí el motivo (al menos 5 caracteres).</div>'; return; }
+    if (d.operador.length < 2) { res.innerHTML = '<div class="ayuda" style="color:var(--rojo);">Indicá quién lo hace (operador).</div>'; return; }
+    if (firma) { d.confirmar = true; d.firma = firma; }
+    box.querySelectorAll('button').forEach(b => b.disabled = true); res.innerHTML = '<div class="ayuda">Consultando…</div>';
+    let r = null;
+    try { r = await _adminApi(_vpCobroAcc[tipo], d); }
+    catch (e) { r = { error: '📡 Error de conexión: no se sabe si se registró. Tocá de nuevo: si ya estaba hecho, el sistema te lo va a decir (no se duplica).' }; }
+    box.querySelectorAll('button').forEach(b => b.disabled = false);
+    if (!r || r.error) { res.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc((r && r.error) || 'Error') + '</div>'; return; }
+    if (r.vistaPrevia) {
+        let det = '';
+        if (tipo === 'corregir') det = 'Antes: $' + Number(r.antes.importe).toLocaleString('es-AR') + ' el ' + _esc(r.antes.fechaPago) + ' → Después: $' + Number(r.despues.importe).toLocaleString('es-AR') + ' el ' + _esc(r.despues.fechaPago) + '.';
+        if (tipo === 'anular') det = '<b>' + (r.estado === 'RESUELTA' ? 'Se quita el período ' + _esc(r.vigencia.quitarPeriodo) + ': el vencimiento pasa del ' + _esc(r.vigencia.venceAntes) + ' al ' + _esc(r.vigencia.venceDespues) + '.'
+                                                                   : 'La vigencia NO cambia: queda REQUIERE REVISIÓN.') + '</b>' + (r.razones && r.razones.length ? '<br>Motivos: ' + r.razones.map(_esc).join('; ') : '');
+        res.innerHTML = '<div class="ayuda" style="margin:6px 0;">' + det + '<br>' + _esc(r.aviso || '') + '</div>' +
+            '<button class="btn-accion vpcConf" style="background:#C62828;color:white;">Confirmar</button>';
+        res.querySelector('.vpcConf').onclick = () => vpCobroEnviar(pagoId, tipo, r.firma);
+        return;
+    }
+    const ya = r.yaRegistrado || r.yaAnulado || r.yaResuelto;
+    toast((ya ? 'ℹ️ ' : '') + (r.mensaje || '✅ Listo'), ya ? '' : 'verde');
+    await _vpTrasConfirmar();
+}
+
+// ═════ V17: 📊 Cobros por período (solo consulta) ═════
+function abrirModalCobros() {
+    const m = document.getElementById('modalCobros'); m.classList.add('visible');
+    const anio = document.getElementById('cobAnio'); if (!anio.value) anio.value = new Date().getFullYear();
+    const mes = document.getElementById('cobMes');
+    if (mes.options.length === 1) ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].forEach((n, i) => { const o = document.createElement('option'); o.value = String(i + 1); o.textContent = n; mes.appendChild(o); });
+    const sel = document.getElementById('cobPrefijo'), act = sel.value;
+    sel.innerHTML = '<option value="">Todos</option>' + (clientesCargados || []).map(c => '<option value="' + _esc(c.prefijo) + '">' + _esc(c.prefijo) + ' · ' + _esc(c.nombre || '') + '</option>').join('');
+    sel.value = act;
+}
+function cerrarModalCobros() { document.getElementById('modalCobros').classList.remove('visible'); }
+const _cobMon = (n, m) => (m && m !== 'ARS' ? m + ' ' : '$') + Number(n || 0).toLocaleString('es-AR');
+async function cargarCobros() {
+    const cont = document.getElementById('cobContenido'), btn = document.getElementById('cobBtnConsultar');
+    const d = { anio: document.getElementById('cobAnio').value.trim(), mes: document.getElementById('cobMes').value, prefijo: document.getElementById('cobPrefijo').value,
+                entorno: document.getElementById('cobEntorno').value, fechaBase: document.getElementById('cobBase').value };
+    if (!/^\d{4}$/.test(d.anio)) { cont.innerHTML = '<div class="ayuda" style="color:var(--rojo);">Año inválido.</div>'; return; }
+    btn.disabled = true; cont.innerHTML = '<div class="ayuda">Consultando…</div>';
+    let r = null; try { r = await _adminApi('reporteCobrosVao', d); } catch (e) { r = { error: '📡 Error de conexión. Probá de nuevo.' }; }
+    btn.disabled = false;
+    if (!r || r.error) { cont.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc((r && r.error) || 'Error') + '</div>'; return; }
+    let h = '<div class="ayuda" style="margin-bottom:8px;">' + _esc(r.nota) + ' Entorno: <b>' + _esc(r.filtros.entorno) + '</b>.</div>';
+    if (!r.totales.length) h += '<div class="vp-caja"><b>Sin cobros confirmados</b> en ese período.</div>';
+    r.totales.forEach(t => {
+        h += '<div class="vp-caja" id="cobTotal_' + _esc(t.moneda) + '"><h4>Total ' + _esc(t.moneda) + ': ' + _cobMon(t.total, t.moneda) + ' · ' + t.cantidad + ' cobro(s)' + (r.cuadra ? ' <span style="color:#2E7D32;">✔ coincide con el detalle</span>' : ' <span style="color:var(--rojo);">⚠ NO coincide con el detalle</span>') + '</h4>' +
+             '<div style="overflow-x:auto;"><table class="vp-hist"><thead><tr><th>Mes</th><th>Cobros</th><th>Total</th></tr></thead><tbody>' +
+             t.meses.map(m => '<tr><td>' + _esc(m.mes) + '</td><td>' + m.cantidad + '</td><td>' + _cobMon(m.total, t.moneda) + '</td></tr>').join('') + '</tbody></table></div></div>';
+    });
+    if (r.detalle.length) h += '<div class="vp-caja"><h4>Detalle (' + r.detalle.length + ')</h4><div style="overflow-x:auto;"><table class="vp-hist" id="cobDetalle"><thead><tr><th>Fecha de pago</th><th>Comercio</th><th>Importe</th><th>Medio / referencia</th><th>Período</th><th>Operador</th></tr></thead><tbody>' +
+        r.detalle.map(x => '<tr><td>' + _esc(x.fechaPago) + '</td><td>' + _esc(x.prefijo) + '<br><span class="ayuda">' + _esc(x.plan) + '</span></td><td>' + _cobMon(x.importe, x.moneda) +
+            (x.correcciones ? '<br><span class="ayuda">corregido (original ' + _cobMon(x.importeOriginal, x.moneda) + ')</span>' : '') + '</td><td>' + _esc(x.medio) + (x.referencia ? '<br><span class="ayuda">' + _esc(x.referencia) + '</span>' : '') +
+            '</td><td>' + _esc(x.periodo) + '</td><td>' + _esc(x.operador || '') + '</td></tr>').join('') + '</tbody></table></div></div>';
+    const lista = (tit, arr, fn) => arr.length ? '<div class="vp-caja"><h4>' + tit + ' (' + arr.length + ')</h4><div class="ayuda">No se suman en los totales.</div><div style="overflow-x:auto;"><table class="vp-hist"><tbody>' + arr.map(fn).join('') + '</tbody></table></div></div>' : '';
+    h += lista('⛔ Anulados', r.anulados, x => '<tr><td>' + _esc(x.fechaPago) + '</td><td>' + _esc(x.prefijo) + '</td><td>' + _cobMon(x.importe, x.moneda) + '</td><td>' + _esc(x.anulacion) + '</td></tr>');
+    h += lista('⏸️ Pagos no acreditados o devueltos', r.otros, x => '<tr><td>' + _esc(x.fecha) + '</td><td>' + _esc(x.prefijo) + '</td><td>' + _cobMon(x.importe, x.moneda) + '</td><td>' + _esc(x.tipo) + '<br><span class="ayuda">' + _esc(x.motivo) + '</span></td></tr>');
+    h += lista('🗂️ Cobros anteriores a v040 (sin registro central)', r.anterioresV040, x => '<tr><td>' + _esc(x.fechaPago) + '</td><td>' + _esc(x.prefijo) + '</td><td>' + _cobMon(x.importe, x.moneda) + '</td><td>' + _esc(x.medio || '') + ' ' + _esc(x.referencia || '') + '</td></tr>');
+    // V17: control de solo lectura de la cadena de huellas de PAGOS_VAO (no cambia nada)
+    let ig = null; try { ig = await _adminApi('verificarIntegridadPagos', {}); } catch (e) { ig = null; }
+    h += '<div class="vp-caja" id="cobIntegridad">' + (ig && ig.success
+        ? (ig.integra ? '🔐 <b>Registro de cobros íntegro</b>: ' + ig.filas + ' fila(s) de PAGOS_VAO, la cadena de huellas coincide.'
+                      : '<span style="color:var(--rojo);">⚠️ <b>Cadena de huellas alterada</b> en las filas ' + _esc((ig.filasAlteradas || []).join(', ')) + ' de PAGOS_VAO. No edites ni borres filas; avisá a VAO Sistemas.</span>')
+        : '<span class="ayuda">No se pudo verificar la cadena de huellas (' + _esc((ig && ig.error) || 'sin conexión') + ').</span>') + '</div>';
+    cont.innerHTML = h;
+}
+
+// V16: pago RETENIDO (Mercado Pago aprobado que NO se acreditó porque no cubría el precio que correspondía, p. ej. sin cupo).
+function _vpRetenidoHtml(x) {
+    if (!x.retenido) return '';
+    const cab = 'pago MP ' + _esc(x.mp) + ' · $' + Number(x.importe || 0).toLocaleString('es-AR') + ' · ' + _esc(x.fechaPago);
+    if (x.resolucion) return '<div class="vp-aviso" style="background:#E8F5E9;border:1px solid #81C784;margin-top:6px;">✔️ Pago retenido (' + cab + ') — Resuelto: ' + _esc(x.resolucion) + '</div>';
+    if (!/^PAG-[0-9a-f-]{36}$/.test(String(x.pagoId || ''))) return '';
+    const id = x.pagoId;
+    return '<div class="vp-aviso vp-retenido" id="vpRet_' + id + '" style="background:#FFF3E0;border:1px solid #FFB74D;margin-top:6px;">' +
+        '⏸️ <b>Pago RETENIDO</b> (' + cab + '): el dinero se recibió pero NO se acreditó.<br><span class="ayuda">' + _esc(x.motivo || '') + '</span><br>Elegí qué hacer:' +
+        '<input type="text" class="vpRetOp" maxlength="40" placeholder="Quién resuelve (operador)" style="margin-top:6px;width:100%;">' +
+        '<input type="text" class="vpRetNota" maxlength="120" placeholder="Nota (opcional)" style="margin-top:4px;width:100%;">' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+        '<button class="btn-accion" onclick="vpResolver(\'' + id + '\',\'APLICAR_OFERTA\',this)">✅ Aplicar la oferta (si hay lugar)</button>' +
+        '<button class="btn-accion" onclick="vpResolver(\'' + id + '\',\'A_DEVOLVER\',this)">↩️ Registrar para devolver</button></div>' +
+        '<div class="vpRetBox"></div></div>';
+}
+async function vpResolver(pagoId, accion, btn, firma) {
+    const caja = document.getElementById('vpRet_' + pagoId); if (!caja) return;
+    const box = caja.querySelector('.vpRetBox'), d = { pagoId: pagoId, accion: accion, operador: caja.querySelector('.vpRetOp').value.trim(), nota: caja.querySelector('.vpRetNota').value.trim() };
+    if (d.operador.length < 2) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">Indicá quién resuelve (operador).</div>'; return; }
+    if (firma) { d.confirmar = true; d.firma = firma; }
+    caja.querySelectorAll('button').forEach(b => b.disabled = true); box.innerHTML = '<div class="ayuda">Consultando Mercado Pago…</div>';
+    let r = null;
+    try { r = await _adminApi('mpResolverRetenido', d); } catch (e) { r = { error: '📡 Error de conexión: no se sabe si se registró. Tocá de nuevo: si ya estaba hecho, te lo va a decir.' }; }
+    caja.querySelectorAll('button').forEach(b => b.disabled = false);
+    if (!r || r.error) { box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc((r && r.error) || 'Error') + '</div>'; return; }
+    if (r.vistaPrevia) {
+        box.innerHTML = '<div class="ayuda" style="margin-top:6px;">' + _esc(r.detalle) + ' (Mercado Pago: ' + _esc(r.estadoMP) + ', $' + Number(r.importe || 0).toLocaleString('es-AR') + ')</div>' +
+            '<button class="btn-accion" id="vpRetConf_' + pagoId + '" style="margin-top:6px;background:#00695C;color:white;">Confirmar</button>';
+        document.getElementById('vpRetConf_' + pagoId).onclick = () => vpResolver(pagoId, accion, null, r.firma);
+        return;
+    }
+    toast((r.yaResuelto ? 'ℹ️ ' : '✅ ') + (r.mensaje || 'Listo'), r.yaResuelto ? '' : 'verde');
+    await _vpTrasConfirmar();
+}
+
+// V15: busca en Mercado Pago pagos de órdenes abiertas y reembolsos/contracargos (solo consulta + acreditación idempotente en el servidor).
+async function vpConciliarMP(btn) {
+    const box = document.getElementById('vpConciliarBox'); btn.disabled = true; box.innerHTML = '<div class="ayuda">Consultando…</div>';
+    try {
+        const r = await _adminApi('mpConciliarAdmin', {});
+        box.innerHTML = r.error ? '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>'
+            : '<div class="ayuda">' + (r.omitido ? 'Mercado Pago no está configurado o los pagos están bloqueados.' : 'Órdenes revisadas: ' + r.ordenes + ' · acreditados: ' + r.acreditados + ' · reembolsos/contracargos nuevos: ' + r.revertidos + (r.errores ? ' · errores: ' + r.errores : '')) + '</div>';
+        if (!r.error && !r.omitido && (r.acreditados || r.revertidos || r.completados)) await _vpTrasConfirmar();
+    } catch (e) { box.innerHTML = '<div class="ayuda">📡 Error de conexión.</div>'; }
+    finally { btn.disabled = false; }
 }
 
 function vpPrecioDePlan() {
@@ -1888,7 +2096,9 @@ function vpPrecioDePlan() {
 
 function _vpDatos(accion) {
     const v = id => (document.getElementById(id) || {}).value || '';
-    if (accion === 'confirmarPagoRecibido') return { plan: v('vpPlan'), importe: v('vpImporte').replace(/\D/g, ''), medio: v('vpMedio'), fechaPago: v('vpFechaPago'), referencia: v('vpReferencia').trim(), clave: _vpClave };
+    if (accion === 'confirmarPagoRecibido') { const d = { plan: v('vpPlan'), importe: v('vpImporte').replace(/\D/g, ''), medio: v('vpMedio'), fechaPago: v('vpFechaPago'), referencia: v('vpReferencia').trim(),
+        cuenta: v('vpCuenta'), banco: v('vpBanco').trim(), titular: v('vpTitular').replace(/\D/g, ''), operador: v('vpOperador').trim(), clave: _vpClave }; // V15
+        const fr = v('vpFrase').trim() || _vpFraseMem; if (fr) { _vpFraseMem = fr; d.frase = fr; } return d; } // la frase sobrevive al redibujo de la vista previa
     if (accion === 'registrarCortesia')     return { dias: v('vpCortesiaDias'), motivo: v('vpCortesiaMotivo').trim() };
     if (accion === 'regularizarVigencia')   return { fin: v('vpRegFin'), inicio: v('vpRegInicio'), motivo: v('vpRegMotivo').trim() };
     if (accion === 'sincronizarVigencia')   return { motivo: v('vpSincMotivo').trim() };
@@ -1916,17 +2126,20 @@ async function vpPrevia(accion, btn) {
     const box = document.getElementById('vpBox_' + accion);
     const d = _vpDatos(accion);
     if (accion === 'confirmarPagoRecibido' && !/^\d+$/.test(d.importe)) { toast('Ingresá el importe (sin puntos)', 'rojo'); return; }
+    if (accion === 'confirmarPagoRecibido' && d.referencia.replace(/[\s\-.\/]/g, '').length < 4) { toast('Escribí la referencia de la operación (mínimo 4 letras o números)', 'rojo'); return; } // V15
     if ((accion === 'registrarCortesia' || accion === 'regularizarVigencia' || accion === 'sincronizarVigencia') && d.motivo.length < 5) { toast('Escribí el motivo (mínimo 5 caracteres)', 'rojo'); return; }
     if (accion === 'regularizarVigencia' && !d.fin) { toast('Elegí la fecha hasta la que queda vigente', 'rojo'); return; }
     btn.disabled = true; box.innerHTML = '<div class="ayuda">Calculando…</div>';
     try {
         const r = await _adminApi(accion, Object.assign({ prefijo: vigenciaPrefijoActual }, d));
         if (r.error) {
-            box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>';
+            box.innerHTML = '<div class="ayuda" style="color:var(--rojo);">❌ ' + _esc(r.error) + '</div>' +
+                (r.posibleDuplicado ? '<div class="form-grupo" style="margin-top:6px;"><label class="form-label">Si de verdad es otra transferencia, escribí ES OTRA TRANSFERENCIA y tocá Vista previa de nuevo</label>' +
+                    '<input class="form-input" id="vpFrase" maxlength="30" autocomplete="off"></div>' : ''); // V15
             if (r.pagoEnCurso) await cargarVigenciaPagos();
             return;
         }
-        if (r.yaRegistrado) { box.innerHTML = '<div class="ayuda" style="color:#2E7D32;">' + _esc(r.mensaje) + '</div>'; _vpClave = _nuevaClave(); await _vpTrasConfirmar(); return; }
+        if (r.yaRegistrado) { toast(r.mensaje, 'verde'); _vpClave = _nuevaClave(); await _vpTrasConfirmar(); return; } // V15: el aviso queda visible (la ficha se vuelve a dibujar)
         _vpPrevia[accion] = { datos: d, firma: r.firma };
         box.innerHTML = '<div class="vp-aviso" style="background:#E3F2FD;border:1px solid #90CAF9;margin-top:8px;">' + _vpResumenPrevia(accion, r) +
             '<div class="ayuda" style="margin-top:4px;">Nada se guardó todavía.</div>' +
@@ -1954,12 +2167,12 @@ async function vpConfirmar(accion, btn) {
             return;
         }
         toast(r.mensaje || '✅ Listo', 'verde');
-        if (accion === 'confirmarPagoRecibido') _vpClave = _nuevaClave(); // la próxima operación es otra
+        if (accion === 'confirmarPagoRecibido') { _vpClave = _nuevaClave(); _vpFraseMem = ''; } // la próxima operación es otra (V15: la frase no se arrastra)
         await _vpTrasConfirmar();
     } catch (e) {
         // sin respuesta: puede haberse guardado o no. Con el pago, la misma clave evita duplicar.
         box.innerHTML = '<div class="ayuda" style="color:#E65100;">📡 Sin respuesta del servidor. ' +
-            (accion === 'confirmarPagoRecibido' ? 'Tocá <b>Confirmar</b> de nuevo: si ya se había registrado, no se duplica.' : 'Tocá Actualizar para ver si quedó registrado antes de repetir.') + '</div>' +
+            (accion === 'confirmarPagoRecibido' ? 'Tocá <b>Confirmar</b> de nuevo: si ya se había registrado, no se duplica (la misma transferencia —cuenta + referencia— nunca se registra dos veces).' : 'Tocá Actualizar para ver si quedó registrado antes de repetir.') + '</div>' +
             (accion === 'confirmarPagoRecibido' ? '<button class="btn-accion" id="vpConf_' + accion + '" style="margin-top:6px;background:var(--verde);color:white;" onclick="vpConfirmar(\'' + accion + '\', this)">✅ Confirmar de nuevo</button>' : '');
     }
 }
